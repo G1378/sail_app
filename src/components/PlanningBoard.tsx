@@ -1,20 +1,6 @@
 "use client";
 
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  rectSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
+import { SortableContext, rectSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { BoatCard } from "@/components/BoatCard";
 import type { Boat } from "@/types";
 
@@ -24,24 +10,6 @@ interface PlanningBoardProps {
 }
 
 export function PlanningBoard({ boats, onBoatsChange }: PlanningBoardProps) {
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = boats.findIndex((b) => b.id === active.id);
-      const newIndex = boats.findIndex((b) => b.id === over.id);
-      onBoatsChange(arrayMove(boats, oldIndex, newIndex));
-    }
-  }
-
   return (
     <div className="w-full p-3 sm:p-5 lg:flex-1 lg:overflow-y-auto">
       <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
@@ -73,19 +41,13 @@ export function PlanningBoard({ boats, onBoatsChange }: PlanningBoardProps) {
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleDragEnd}
-      >
         <SortableContext items={boats.map((b) => b.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(210px,1fr))]">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
             {boats.map((boat) => (
               <BoatCard key={boat.id} boat={boat} />
             ))}
           </div>
         </SortableContext>
-      </DndContext>
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { ChevronUp, ChevronDown, GripVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { cn, getSkillColor, getConfidenceColor } from "@/lib/utils";
 import type { Sailor } from "@/types";
 
@@ -23,12 +25,24 @@ const ROLE_ICONS: Record<string, string> = {
 };
 
 function SailorChip({ sailor }: SailorChipProps) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `sailor:${sailor.id}`,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+  };
+
   return (
-    <motion.div
-      whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
-      transition={{ duration: 0.15 }}
-      draggable
-      className="w-full max-w-[11rem] flex-shrink-0 rounded-xl border border-gray-100 bg-white p-3 transition-colors cursor-grab hover:border-blue-200 sm:w-44"
+      <motion.div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
+        animate={{ opacity: isDragging ? 0.5 : 1 }}
+        transition={{ duration: 0.15 }}
+        className="w-full max-w-[11rem] min-w-[12rem] flex-shrink-0 rounded-xl border border-gray-100 bg-white p-3 transition-colors cursor-grab hover:border-blue-200 sm:min-w-0 sm:w-44"
     >
       <div className="flex items-start justify-between mb-1.5">
         <span className="text-xs font-semibold text-gray-900">{sailor.name}</span>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Wind, Compass, Waves, CloudLightning, Zap, Save } from "lucide-react";
+import { Wind, Compass, Waves, CloudLightning, Zap, Save, Menu, List } from "lucide-react";
 import { motion } from "framer-motion";
 import type { SessionData } from "@/types";
 
@@ -21,7 +21,9 @@ export function SessionHeader({
   session,
   onGenerate,
   onSave,
-}: SessionHeaderProps) {
+  onOpenLeft,
+  onOpenRight,
+}: SessionHeaderProps & { onOpenLeft?: () => void; onOpenRight?: () => void }) {
   const { weather, objective } = session;
 
   const weatherItems = [
@@ -49,6 +51,22 @@ export function SessionHeader({
 
   return (
     <header className="z-10 flex flex-col gap-3 border-b border-gray-100 bg-white px-3 py-3 sm:px-5 sm:py-4 lg:flex-row lg:items-center lg:gap-4">
+      <div className="flex items-center gap-2 lg:hidden">
+        <button
+          onClick={onOpenLeft}
+          aria-label="Open left sidebar"
+          className="rounded-md p-2 text-gray-600 hover:bg-gray-100"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <button
+          onClick={onOpenRight}
+          aria-label="Open right sidebar"
+          className="rounded-md p-2 text-gray-600 hover:bg-gray-100"
+        >
+          <List className="h-5 w-5" />
+        </button>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {/* Brand / session title */}
         <div className="flex items-center gap-2 flex-shrink-0">

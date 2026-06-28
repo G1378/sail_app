@@ -76,7 +76,9 @@ export function LeftSidebar({
   notes,
   onNotesChange,
   boatStats,
-}: LeftSidebarProps) {
+  hidden,
+  onClose,
+}: LeftSidebarProps & { hidden?: boolean; onClose?: () => void }) {
   const { sailors, instructors } = session;
 
   const stage1 = sailors.filter((s) => s.stage === 1).length;
@@ -84,7 +86,18 @@ export function LeftSidebar({
   const stage3 = sailors.filter((s) => s.stage === 3).length;
 
   return (
-    <aside className="order-2 w-full border-b border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:order-1 lg:w-56 lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:max-h-none">
+    <aside
+      className={"order-2 w-full border-b border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:order-1 lg:w-56 lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:max-h-none"}
+      style={hidden ? { display: "none" } : undefined}
+    >
+      {hidden && (
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold">Available Sailors</span>
+          <button onClick={onClose} className="text-xs text-gray-600">
+            Close
+          </button>
+        </div>
+      )}
       {/* Sailors */}
       <SidebarCard icon={Users} title="Available Sailors">
         <StatRow label="Total" value={sailors.length} />

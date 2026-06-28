@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { AlertTriangle, Users } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
@@ -46,6 +47,10 @@ export function BoatCard({ boat }: BoatCardProps) {
     isDragging,
   } = useSortable({ id: boat.id });
 
+  const { setNodeRef: setDroppableNodeRef, isOver } = useDroppable({
+    id: boat.id,
+  });
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -62,8 +67,12 @@ export function BoatCard({ boat }: BoatCardProps) {
       : "bg-gray-200";
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setDroppableNodeRef}>
       <motion.div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
         whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0,0,0,0.07)" }}
@@ -72,7 +81,8 @@ export function BoatCard({ boat }: BoatCardProps) {
           "bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 select-none",
           isDragging && "shadow-xl scale-[0.98]",
           boat.status === "alert" && "border-red-100",
-          boat.status === "warn" && "border-amber-100"
+          boat.status === "warn" && "border-amber-100",
+          isOver && "border-blue-300 bg-blue-50/70"
         )}
       >
         {/* Header */}

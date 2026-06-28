@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   description: "Organise dinghy sailing sessions and allocate sailors to boats",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: {

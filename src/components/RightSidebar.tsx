@@ -69,7 +69,7 @@ function RecItem({ rec }: { rec: Recommendation }) {
   );
 }
 
-export function RightSidebar({ boats, session }: RightSidebarProps) {
+export function RightSidebar({ boats, session, hidden, onClose }: RightSidebarProps & { hidden?: boolean; onClose?: () => void }) {
   const ready = boats.filter((b) => b.status === "ready").length;
   const warn = boats.filter((b) => b.status === "warn").length;
   const alert = boats.filter((b) => b.status === "alert").length;
@@ -80,7 +80,18 @@ export function RightSidebar({ boats, session }: RightSidebarProps) {
   const unassigned = totalSailors - assigned;
 
   return (
-    <aside className="order-3 w-full border-t border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:w-56 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:max-h-none">
+    <aside
+      className="order-3 w-full border-t border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:w-56 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:max-h-none"
+      style={hidden ? { display: "none" } : undefined}
+    >
+      {hidden && (
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold">Planning Summary</span>
+          <button onClick={onClose} className="text-xs text-gray-600">
+            Close
+          </button>
+        </div>
+      )}
       {/* Planning Summary */}
       <SidebarCard icon={BarChart3} title="Planning Summary" delay={0.05}>
         <div className="flex flex-col gap-1">

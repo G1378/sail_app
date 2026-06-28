@@ -36,6 +36,40 @@ function InstructorSection({ instructor, boats }: { instructor: string; boats: B
   );
 }
 
+function UnassignedSection({ boats, onAssignByTap, assignEnabled }: { boats: Boat[]; onAssignByTap?: (boatId: string) => void; assignEnabled?: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: "instructor:unassigned" });
+
+  return (
+    <div ref={setNodeRef} className={cn("bg-white rounded-2xl border border-gray-100 p-4", isOver && "ring-2 ring-blue-200 bg-blue-50") }>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Unassigned Boats</h3>
+          <p className="text-xs text-gray-500">Drag a boat here to remove it from an instructor group.</p>
+        </div>
+        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-600">
+          {boats.length} boats
+        </span>
+      </div>
+      {boats.length > 0 ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+          {boats.map((boat) => (
+            <BoatCard
+              key={boat.id}
+              boat={boat}
+              onAssignSailor={() => onAssignByTap?.(boat.id)}
+              assignEnabled={Boolean(assignEnabled)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-sm text-gray-500 text-center">
+          Drop a boat here to unassign it.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PlanningBoard({ boats, onBoatsChange, selectedInstructors, onAssignByTap, assignEnabled }: PlanningBoardProps) {
   const groupedBoats = selectedInstructors.map((teacher) => ({
     instructor: teacher,
@@ -86,29 +120,11 @@ export function PlanningBoard({ boats, onBoatsChange, selectedInstructors, onAss
           />
         ))}
 
-        {ungroupedBoats.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Unassigned Boats</h3>
-                <p className="text-xs text-gray-500">Drag a boat under an instructor to assign it.</p>
-              </div>
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-600">
-                {ungroupedBoats.length} boats
-              </span>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-              {ungroupedBoats.map((boat) => (
-                <BoatCard
-                  key={boat.id}
-                  boat={boat}
-                  onAssignSailor={() => onAssignByTap?.(boat.id)}
-                  assignEnabled={Boolean(assignEnabled)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        <UnassignedSection
+          boats={ungroupedBoats}
+          onAssignByTap={onAssignByTap}
+          assignEnabled={assignEnabled}
+        />
       </div>
     </div>
   );

@@ -129,7 +129,11 @@ export default function PlannerPage() {
       if (boats.some((b) => b.id === activeId) && overId.startsWith("instructor:")) {
         const instructorName = overId.split(":")[1];
         setBoats((currentBoats) =>
-          currentBoats.map((boat) => (boat.id === activeId ? { ...boat, instructor: instructorName } : boat))
+          currentBoats.map((boat) =>
+            boat.id === activeId
+              ? { ...boat, instructor: instructorName === "unassigned" ? null : instructorName }
+              : boat
+          )
         );
         return;
       }

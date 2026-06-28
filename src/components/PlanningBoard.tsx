@@ -23,7 +23,7 @@ interface PlanningBoardProps {
   onAssignBoatToInstructor?: (instructor: string) => void;
 }
 
-function InstructorSection({ instructor, boats, activeDragType, onAssignBoatToInstructor, selectedBoatId }: { instructor: string; boats: Boat[]; activeDragType?: "boat" | "sailor" | null; onAssignBoatToInstructor?: (instructor: string) => void; selectedBoatId?: string | null }) {
+function InstructorSection({ instructor, boats, activeDragType, onAssignBoatToInstructor, selectedBoatId, onSelectBoat }: { instructor: string; boats: Boat[]; activeDragType?: "boat" | "sailor" | null; onAssignBoatToInstructor?: (instructor: string) => void; selectedBoatId?: string | null; onSelectBoat?: (id: string | null) => void }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `instructor:${instructor}`,
     disabled: activeDragType !== "boat",
@@ -55,14 +55,14 @@ function InstructorSection({ instructor, boats, activeDragType, onAssignBoatToIn
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {boats.map((boat) => (
-          <BoatCard key={boat.id} boat={boat} draggable />
+          <BoatCard key={boat.id} boat={boat} draggable onSelectBoat={onSelectBoat} selectedBoatId={selectedBoatId} />
         ))}
       </div>
     </div>
   );
 }
 
-function UnassignedSection({ boats, onAssignByTap, assignEnabled, activeDragType, onAssignBoatToInstructor }: { boats: Boat[]; onAssignByTap?: (boatId: string) => void; assignEnabled?: boolean; activeDragType?: "boat" | "sailor" | null; onAssignBoatToInstructor?: (instructor: string) => void }) {
+function UnassignedSection({ boats, onAssignByTap, assignEnabled, activeDragType, onAssignBoatToInstructor, onSelectBoat, selectedBoatId }: { boats: Boat[]; onAssignByTap?: (boatId: string) => void; assignEnabled?: boolean; activeDragType?: "boat" | "sailor" | null; onAssignBoatToInstructor?: (instructor: string) => void; onSelectBoat?: (id: string | null) => void; selectedBoatId?: string | null }) {
   const { setNodeRef, isOver } = useDroppable({
     id: "instructor:unassigned",
     disabled: activeDragType !== "boat",
@@ -96,6 +96,8 @@ function UnassignedSection({ boats, onAssignByTap, assignEnabled, activeDragType
               boat={boat}
               onAssignSailor={() => onAssignByTap?.(boat.id)}
               assignEnabled={Boolean(assignEnabled)}
+              onSelectBoat={onAssignBoatToInstructor ? onSelectBoat : undefined}
+              selectedBoatId={onAssignBoatToInstructor ? selectedBoatId : undefined}
             />
           ))
         ) : (
@@ -152,6 +154,7 @@ export function PlanningBoard({ boats, groupedBoats, ungroupedBoats, selectedIns
             activeDragType={activeDragType}
             onAssignBoatToInstructor={onAssignBoatToInstructor}
             selectedBoatId={selectedBoatId}
+            onSelectBoat={onSelectBoat}
           />
         ))}
 

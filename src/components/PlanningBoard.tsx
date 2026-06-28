@@ -40,32 +40,43 @@ function UnassignedSection({ boats, onAssignByTap, assignEnabled }: { boats: Boa
   const { setNodeRef, isOver } = useDroppable({ id: "instructor:unassigned" });
 
   return (
-    <div ref={setNodeRef} className={cn("bg-white rounded-2xl border border-gray-100 p-4", isOver && "ring-2 ring-blue-200 bg-blue-50") }>
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "bg-white rounded-2xl border p-4 transition-all duration-150",
+        "border-gray-200 shadow-sm",
+        "hover:border-blue-300",
+        isOver && "ring-2 ring-blue-400 bg-blue-50 border-blue-300 shadow-lg"
+      )}
+    >
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Unassigned Boats</h3>
-          <p className="text-xs text-gray-500">Drag a boat here to remove it from an instructor group.</p>
+          <p className="text-xs text-gray-500">Drag a boat here to remove it from an instructor group or keep it unassigned.</p>
         </div>
-        <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-semibold text-gray-600">
+        <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
           {boats.length} boats
         </span>
       </div>
-      {boats.length > 0 ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-          {boats.map((boat) => (
-            <BoatCard
-              key={boat.id}
-              boat={boat}
-              onAssignSailor={() => onAssignByTap?.(boat.id)}
-              assignEnabled={Boolean(assignEnabled)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-sm text-gray-500 text-center">
-          Drop a boat here to unassign it.
-        </div>
-      )}
+
+      <div className={cn("rounded-2xl border p-4 min-h-[200px] transition-colors duration-150", isOver ? "border-blue-300 bg-blue-100" : "border-dashed border-gray-200 bg-white")}> 
+        {boats.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+            {boats.map((boat) => (
+              <BoatCard
+                key={boat.id}
+                boat={boat}
+                onAssignSailor={() => onAssignByTap?.(boat.id)}
+                assignEnabled={Boolean(assignEnabled)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 text-center">
+            Drop a boat here to unassign it.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -80,7 +80,7 @@ export function RightSidebar({ boats, session }: RightSidebarProps) {
   const unassigned = totalSailors - assigned;
 
   return (
-    <aside className="order-3 w-full max-h-[42vh] overflow-y-auto border-t border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:w-56 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:max-h-none">
+    <aside className="order-3 w-full border-t border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:w-56 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:max-h-none">
       {/* Planning Summary */}
       <SidebarCard icon={BarChart3} title="Planning Summary" delay={0.05}>
         <div className="flex flex-col gap-1">

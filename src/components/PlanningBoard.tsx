@@ -43,7 +43,7 @@ export function PlanningBoard({ boats, onBoatsChange }: PlanningBoardProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 sm:p-5">
+    <div className="w-full p-3 sm:p-5 lg:flex-1 lg:overflow-y-auto">
       <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">

@@ -67,7 +67,7 @@ export default function PlannerPage() {
         />
 
         {/* Main content area */}
-        <div className="order-1 flex flex-1 flex-col min-h-0 lg:order-2">
+        <div className="order-1 flex w-full flex-col lg:order-2 lg:flex-1 lg:min-h-0">
           <PlanningBoard boats={boats} onBoatsChange={setBoats} />
           <SailorPool
             sailors={SESSION_DATA.sailors}

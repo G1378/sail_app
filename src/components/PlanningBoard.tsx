@@ -18,36 +18,66 @@ interface PlanningBoardProps {
   onAssignByTap?: (boatId: string) => void;
   assignEnabled?: boolean;
   activeDragType?: "boat" | "sailor" | null;
-  onSelectBoat?: (boatId: string | null) => void;
+  onSelectBoat?: (boatId: string) => void;
   selectedBoatId?: string | null;
   onAssignBoatToInstructor?: (instructor: string) => void;
 }
 
-function InstructorSection({ instructor, boats, activeDragType, onAssignBoatToInstructor, selectedBoatId, onSelectBoat }: { instructor: string; boats: Boat[]; activeDragType?: "boat" | "sailor" | null; onAssignBoatToInstructor?: (instructor: string) => void; selectedBoatId?: string | null; onSelectBoat?: (id: string | null) => void }) {
+function InstructorSection({
+  instructor,
+  boats,
+  activeDragType,
+  onAssignBoatToInstructor,
+  selectedBoatId,
+  onSelectBoat,
+  boatSelectionActive,
+}: {
+  instructor: string;
+  boats: Boat[];
+  activeDragType?: "boat" | "sailor" | null;
+  onAssignBoatToInstructor?: (instructor: string) => void;
+  selectedBoatId?: string | null;
+  onSelectBoat?: (id: string) => void;
+  boatSelectionActive?: boolean;
+}) {
   const { setNodeRef, isOver } = useDroppable({
     id: `instructor:${instructor}`,
     disabled: activeDragType !== "boat",
   });
 
   return (
-    <div ref={setNodeRef} className={cn("bg-white rounded-2xl border border-gray-100 p-4", isOver && "ring-2 ring-blue-200 bg-blue-50") }>
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "bg-white rounded-2xl border border-gray-100 p-4",
+        isOver && "ring-2 ring-blue-200 bg-blue-50",
+        boatSelectionActive && "ring-2 ring-blue-300 bg-blue-50/40"
+      )}
+    >
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          {onAssignBoatToInstructor ? (
-            <button
-              type="button"
-              onClick={() => onAssignBoatToInstructor(instructor)}
-              className="text-left"
+          <button
+            type="button"
+            onClick={() => onAssignBoatToInstructor?.(instructor)}
+            className="text-left"
+            disabled={!boatSelectionActive}
+          >
+            <h3
+              className={cn(
+                "text-sm font-semibold",
+                boatSelectionActive
+                  ? "text-blue-700 underline underline-offset-2"
+                  : "text-gray-800"
+              )}
             >
-              <h3 className="text-sm font-semibold text-blue-700">{instructor}</h3>
-              <p className="text-xs text-gray-500">Tap to assign selected boat to this instructor</p>
-            </button>
-          ) : (
-            <>
-              <h3 className="text-sm font-semibold text-blue-700">{instructor}</h3>
-              <p className="text-xs text-gray-500">Drag boats here to assign to this instructor</p>
-            </>
-          )}
+              {instructor}
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {boatSelectionActive
+                ? "Tap to assign selected boat here"
+                : "Drag boats here or select a boat first"}
+            </p>
+          </button>
         </div>
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
           {boats.length} boats
@@ -55,34 +85,75 @@ function InstructorSection({ instructor, boats, activeDragType, onAssignBoatToIn
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {boats.map((boat) => (
-          <BoatCard key={boat.id} boat={boat} draggable onSelectBoat={onSelectBoat} selectedBoatId={selectedBoatId} />
+          <BoatCard
+            key={boat.id}
+            boat={boat}
+            draggable
+            onSelectBoat={onSelectBoat}
+            selectedBoatId={selectedBoatId}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function UnassignedSection({ boats, onAssignByTap, assignEnabled, activeDragType, onAssignBoatToInstructor, onSelectBoat, selectedBoatId }: { boats: Boat[]; onAssignByTap?: (boatId: string) => void; assignEnabled?: boolean; activeDragType?: "boat" | "sailor" | null; onAssignBoatToInstructor?: (instructor: string) => void; onSelectBoat?: (id: string | null) => void; selectedBoatId?: string | null }) {
+function UnassignedSection({
+  boats,
+  onAssignByTap,
+  assignEnabled,
+  activeDragType,
+  onAssignBoatToInstructor,
+  onSelectBoat,
+  selectedBoatId,
+  boatSelectionActive,
+}: {
+  boats: Boat[];
+  onAssignByTap?: (boatId: string) => void;
+  assignEnabled?: boolean;
+  activeDragType?: "boat" | "sailor" | null;
+  onAssignBoatToInstructor?: (instructor: string) => void;
+  onSelectBoat?: (id: string) => void;
+  selectedBoatId?: string | null;
+  boatSelectionActive?: boolean;
+}) {
   const { setNodeRef, isOver } = useDroppable({
     id: "instructor:unassigned",
     disabled: activeDragType !== "boat",
   });
 
   return (
-    <div ref={setNodeRef} className={cn("bg-white rounded-2xl border border-gray-100 p-4", isOver && "ring-2 ring-blue-200 bg-blue-50")}>
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "bg-white rounded-2xl border border-gray-100 p-4",
+        isOver && "ring-2 ring-blue-200 bg-blue-50"
+      )}
+    >
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          {onAssignBoatToInstructor ? (
-            <button type="button" onClick={() => onAssignBoatToInstructor("unassigned")} className="text-left">
-              <h3 className="text-sm font-semibold text-blue-700">Unassigned Boats</h3>
-              <p className="text-xs text-gray-500">Tap to move selected boat here (unassign)</p>
-            </button>
-          ) : (
-            <>
-              <h3 className="text-sm font-semibold text-blue-700">Unassigned Boats</h3>
-              <p className="text-xs text-gray-500">Drag a boat onto this section to remove it from an instructor group</p>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={() => onAssignBoatToInstructor?.("unassigned")}
+            className="text-left"
+            disabled={!boatSelectionActive}
+          >
+            <h3
+              className={cn(
+                "text-sm font-semibold",
+                boatSelectionActive
+                  ? "text-blue-700 underline underline-offset-2"
+                  : "text-gray-800"
+              )}
+            >
+              Unassigned Boats
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {boatSelectionActive
+                ? "Tap to move selected boat here (unassign)"
+                : "Select a boat to move it, or drag between groups"}
+            </p>
+          </button>
         </div>
         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
           {boats.length} boats
@@ -91,20 +162,23 @@ function UnassignedSection({ boats, onAssignByTap, assignEnabled, activeDragType
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {boats.length > 0 ? (
           boats.map((boat) => (
-              <BoatCard
-                key={boat.id}
-                boat={boat}
-                onAssignSailor={() => onAssignByTap?.(boat.id)}
-                assignEnabled={Boolean(assignEnabled)}
-                onSelectBoat={onSelectBoat}
-                selectedBoatId={selectedBoatId}
-              />
+            <BoatCard
+              key={boat.id}
+              boat={boat}
+              draggable
+              onAssignSailor={assignEnabled ? () => onAssignByTap?.(boat.id) : undefined}
+              assignEnabled={Boolean(assignEnabled)}
+              onSelectBoat={onSelectBoat}
+              selectedBoatId={selectedBoatId}
+            />
           ))
         ) : (
-          <div className={cn(
-            "rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 text-center min-h-[200px]",
-            isOver && "border-blue-300 bg-blue-100"
-          )}>
+          <div
+            className={cn(
+              "rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-6 text-sm text-gray-500 text-center min-h-[200px]",
+              isOver && "border-blue-300 bg-blue-100"
+            )}
+          >
             Drop a boat here to unassign it.
           </div>
         )}
@@ -113,7 +187,20 @@ function UnassignedSection({ boats, onAssignByTap, assignEnabled, activeDragType
   );
 }
 
-export function PlanningBoard({ boats, groupedBoats, ungroupedBoats, selectedInstructors, onAssignByTap, assignEnabled, activeDragType, onSelectBoat, selectedBoatId, onAssignBoatToInstructor }: PlanningBoardProps) {
+export function PlanningBoard({
+  boats,
+  groupedBoats,
+  ungroupedBoats,
+  selectedInstructors,
+  onAssignByTap,
+  assignEnabled,
+  activeDragType,
+  onSelectBoat,
+  selectedBoatId,
+  onAssignBoatToInstructor,
+}: PlanningBoardProps) {
+  const boatSelectionActive = Boolean(selectedBoatId);
+
   return (
     <div className="w-full p-3 sm:p-5 lg:flex-1 lg:overflow-y-auto">
       <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
@@ -122,7 +209,10 @@ export function PlanningBoard({ boats, groupedBoats, ungroupedBoats, selectedIns
             Fleet Allocation Board
           </h2>
           <p className="mt-0.5 text-xs text-gray-400">
-            {boats.length} boats · Drag to reorder or assign instructors by dragging into a group
+            {boats.length} boats ·{" "}
+            {boatSelectionActive
+              ? "Tap a group title to move the selected boat there"
+              : "Tap a boat to select it, then tap a group title to move it"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-400 sm:gap-4 sm:text-xs">
@@ -155,6 +245,7 @@ export function PlanningBoard({ boats, groupedBoats, ungroupedBoats, selectedIns
             onAssignBoatToInstructor={onAssignBoatToInstructor}
             selectedBoatId={selectedBoatId}
             onSelectBoat={onSelectBoat}
+            boatSelectionActive={boatSelectionActive}
           />
         ))}
 
@@ -164,6 +255,9 @@ export function PlanningBoard({ boats, groupedBoats, ungroupedBoats, selectedIns
           assignEnabled={assignEnabled}
           activeDragType={activeDragType}
           onAssignBoatToInstructor={onAssignBoatToInstructor}
+          onSelectBoat={onSelectBoat}
+          selectedBoatId={selectedBoatId}
+          boatSelectionActive={boatSelectionActive}
         />
       </div>
     </div>

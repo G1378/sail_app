@@ -2,7 +2,7 @@ import type { SessionData } from "@/types";
 
 export const SESSION_DATA: SessionData = {
   objective: "Trapeze & Spinnaker Focus",
-  date: "Sunday, 29 June 2025",
+  date: new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
   weather: {
     windSpeed: "12–15 kn",
     windDirection: "SW",

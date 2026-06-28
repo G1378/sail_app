@@ -90,14 +90,12 @@ export function LeftSidebar({
       className={"order-2 w-full border-b border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:order-1 lg:w-56 lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:max-h-none"}
       style={hidden ? { display: "none" } : undefined}
     >
-      {hidden && (
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold">Available Sailors</span>
-          <button onClick={onClose} className="text-xs text-gray-600">
-            Close
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between mb-1 lg:hidden">
+        <span className="text-sm font-semibold text-gray-800">Session Info</span>
+        <button onClick={onClose} className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-200">
+          Close ✕
+        </button>
+      </div>
       {/* Sailors */}
       <SidebarCard icon={Users} title="Available Sailors">
         <StatRow label="Total" value={sailors.length} />

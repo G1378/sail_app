@@ -3,7 +3,38 @@
 import { motion } from "framer-motion";
 import { BarChart3, CloudSun, Target, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useWeather, DEFAULT_LOCATION } from "@/lib/useWeather";
 import type { Boat, Recommendation, SessionData } from "@/types";
+
+// Derive safety items from live wind data
+function buildSafetyItems(windKn: number | null, gustKn: number | null) {
+  const w = windKn ?? 0;
+  const g = gustKn ?? 0;
+  return [
+    {
+      ok: w <= 20,
+      text: windKn !== null
+        ? `Wind ${w} kn — ${w <= 15 ? "suitable for all boats" : w <= 20 ? "suitable for advanced sailors" : "consider curtailing session"}`
+        : "Wind within safe limits",
+    },
+    {
+      ok: g <= 20,
+      text: gustKn !== null
+        ? `Gusts up to ${g} kn — ${g <= 15 ? "no concerns" : g <= 20 ? "beginners should take care" : "high gusts — restrict beginners"}`
+        : "Gusts may affect beginners",
+    },
+    {
+      ok: true,
+      text: "Check local tide tables before launch",
+    },
+    {
+      ok: w <= 25 && g <= 30,
+      text: w > 25 || g > 30
+        ? "Conditions may require safety boat standby"
+        : "Conditions within normal operating limits",
+    },
+  ];
+}
 
 interface RightSidebarProps {
   boats: Boat[];
@@ -79,19 +110,26 @@ export function RightSidebar({ boats, session, hidden, onClose }: RightSidebarPr
   const assigned = boats.reduce((acc, b) => acc + b.filled, 0);
   const unassigned = totalSailors - assigned;
 
+  const weatherState = useWeather(DEFAULT_LOCATION);
+  const windKn = weatherState.status === "ok"
+    ? parseInt(weatherState.data.windSpeed)
+    : null;
+  const gustKn = weatherState.status === "ok"
+    ? parseInt(weatherState.data.gusts.replace(/\D+(\d+).*/,"$1"))
+    : null;
+  const safetyItems = buildSafetyItems(windKn, gustKn);
+
   return (
     <aside
       className="order-3 w-full border-t border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:w-56 lg:flex-shrink-0 lg:border-t-0 lg:border-l lg:max-h-none"
       style={hidden ? { display: "none" } : undefined}
     >
-      {hidden && (
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold">Planning Summary</span>
-          <button onClick={onClose} className="text-xs text-gray-600">
-            Close
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between mb-1 lg:hidden">
+        <span className="text-sm font-semibold text-gray-800">Planning Summary</span>
+        <button onClick={onClose} className="rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-200">
+          Close ✕
+        </button>
+      </div>
       {/* Planning Summary */}
       <SidebarCard icon={BarChart3} title="Planning Summary" delay={0.05}>
         <div className="flex flex-col gap-1">
@@ -138,12 +176,7 @@ export function RightSidebar({ boats, session, hidden, onClose }: RightSidebarPr
       {/* Weather Safety */}
       <SidebarCard icon={CloudSun} title="Weather Safety" delay={0.1}>
         <div className="flex flex-col gap-1">
-          {[
-            { ok: true, text: "Wind within safe limits" },
-            { ok: false, text: "Gusts may affect beginners" },
-            { ok: true, text: "Flooding tide — easy return" },
-            { ok: true, text: "No lightning risk forecast" },
-          ].map(({ ok, text }) => (
+          {safetyItems.map(({ ok, text }) => (
             <div key={text} className="flex items-start gap-1.5 py-0.5">
               <span
                 className={cn(

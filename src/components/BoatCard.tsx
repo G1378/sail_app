@@ -87,13 +87,12 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
         {...(draggable ? attributes : {})}
         {...(draggable ? listeners : {})}
         onClick={() => {
-          // If sailor-assign mode is active, prefer assigning sailor to this boat
+          // Sailor-assign mode: tap boat to drop the selected sailor onto it
           if (assignEnabled && onAssignSailor) {
             onAssignSailor();
             return;
           }
-
-          // Otherwise, treat click as selecting this boat for group assignment
+          // Boat-selection mode: tap to select/deselect this boat for group assignment
           if (onSelectBoat) {
             onSelectBoat(boat.id);
           }
@@ -103,12 +102,12 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
         whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0,0,0,0.07)" }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 select-none",
+          "bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3 select-none cursor-pointer",
           isDragging && "shadow-xl scale-[0.98]",
           boat.status === "alert" && "border-red-100",
           boat.status === "warn" && "border-amber-100",
           isOver && "border-blue-300 bg-blue-50/70",
-          isSelected && "ring-2 ring-blue-300 bg-blue-50/40"
+          isSelected && "ring-2 ring-blue-400 bg-blue-50/60 border-blue-200"
         )}
       >
         {/* Header */}

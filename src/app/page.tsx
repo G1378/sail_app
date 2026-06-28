@@ -265,18 +265,22 @@ export default function PlannerPage() {
   );
 
 
+  const BOAT_TYPE_ORDER = ["Feva", "Pico", "Topper", "Optimist"] as const;
   const boatStats = useMemo(() => {
-    const byType: Record<string, number> = {};
+    const byType: Partial<Record<string, number>> = {};
     for (const b of boats) {
       byType[b.type] = (byType[b.type] ?? 0) + 1;
     }
+    const byTypeOrdered = BOAT_TYPE_ORDER
+      .filter((t) => byType[t] !== undefined)
+      .map((t) => [t, byType[t]!] as [string, number]);
     return {
       total: boats.length,
       ready: boats.filter((b) => b.status === "ready").length,
       review: boats.filter(
         (b) => b.status === "warn" || b.status === "alert"
       ).length,
-      byType,
+      byType: Object.fromEntries(byTypeOrdered),
     };
   }, [boats]);
 

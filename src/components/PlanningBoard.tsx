@@ -49,17 +49,22 @@ function UnassignedSection({ boats, onAssignByTap, assignEnabled }: { boats: Boa
         isOver && "ring-2 ring-blue-400 bg-blue-50 border-blue-300 shadow-lg"
       )}
     >
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900">Unassigned Boats</h3>
-          <p className="text-xs text-gray-500">Drag a boat here to remove it from an instructor group or keep it unassigned.</p>
+      <div className={cn(
+        "mb-4 rounded-2xl border border-dashed p-4 transition-colors duration-150",
+        isOver ? "border-blue-300 bg-blue-100" : "border-gray-200 bg-gray-50"
+      )}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Unassigned Boats</h3>
+            <p className="text-xs text-gray-500">Drag a boat onto this section to remove it from an instructor group.</p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
+            {boats.length} boats
+          </span>
         </div>
-        <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">
-          {boats.length} boats
-        </span>
       </div>
 
-      <div className={cn("rounded-2xl border p-4 min-h-[200px] transition-colors duration-150", isOver ? "border-blue-300 bg-blue-100" : "border-dashed border-gray-200 bg-white")}> 
+      <div className={cn("rounded-2xl border p-4 min-h-[200px] transition-colors duration-150", isOver ? "border-blue-300 bg-blue-100" : "border-dashed border-gray-200 bg-white")}>
         {boats.length > 0 ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {boats.map((boat) => (

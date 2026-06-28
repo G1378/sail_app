@@ -91,14 +91,14 @@ function UnassignedSection({ boats, onAssignByTap, assignEnabled, activeDragType
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {boats.length > 0 ? (
           boats.map((boat) => (
-            <BoatCard
-              key={boat.id}
-              boat={boat}
-              onAssignSailor={() => onAssignByTap?.(boat.id)}
-              assignEnabled={Boolean(assignEnabled)}
-              onSelectBoat={onAssignBoatToInstructor ? onSelectBoat : undefined}
-              selectedBoatId={onAssignBoatToInstructor ? selectedBoatId : undefined}
-            />
+              <BoatCard
+                key={boat.id}
+                boat={boat}
+                onAssignSailor={() => onAssignByTap?.(boat.id)}
+                assignEnabled={Boolean(assignEnabled)}
+                onSelectBoat={onSelectBoat}
+                selectedBoatId={selectedBoatId}
+              />
           ))
         ) : (
           <div className={cn(

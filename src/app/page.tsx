@@ -29,6 +29,7 @@ export default function PlannerPage() {
   const [instructors, setInstructors] = useState<string[]>(SESSION_DATA.instructors);
   const [instructorPoolOpen, setInstructorPoolOpen] = useState(true);
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
+  const [instructorGroups, setInstructorGroups] = useState<Record<string, string[]>>({});
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -128,6 +129,7 @@ export default function PlannerPage() {
       // instructor group drop: accept boat being dragged into instructor group
       if (boats.some((b) => b.id === activeId) && overId.startsWith("instructor:")) {
         const instructorName = overId.split(":")[1];
+
         setBoats((currentBoats) =>
           currentBoats.map((boat) =>
             boat.id === activeId
@@ -135,6 +137,30 @@ export default function PlannerPage() {
               : boat
           )
         );
+
+        setInstructorGroups((currentGroups) => {
+          const nextGroups = Object.fromEntries(
+            Object.entries(currentGroups).map(([key, ids]) => [
+              key,
+              ids.filter((id) => id !== activeId),
+            ])
+          );
+
+          if (instructorName !== "unassigned") {
+            nextGroups[instructorName] = Array.from(
+              new Set([...(nextGroups[instructorName] ?? []), activeId])
+            );
+          }
+
+          Object.keys(nextGroups).forEach((key) => {
+            if (nextGroups[key].length === 0) {
+              delete nextGroups[key];
+            }
+          });
+
+          return nextGroups;
+        });
+
         return;
       }
     },
@@ -202,7 +228,15 @@ export default function PlannerPage() {
         <div className="order-1 flex w-full flex-col lg:order-2 lg:flex-1 lg:min-h-0">
           <PlanningBoard
             boats={boats}
-            onBoatsChange={setBoats}
+            groupedBoats={selectedInstructors.map((instructor) => ({
+              instructor,
+              boats: boats.filter((boat) =>
+                (instructorGroups[instructor] ?? []).includes(boat.id)
+              ),
+            }))}
+            ungroupedBoats={boats.filter(
+              (boat) => !Object.values(instructorGroups).flat().includes(boat.id)
+            )}
             selectedInstructors={selectedInstructors}
             onAssignByTap={handleAssignByTap}
             assignEnabled={Boolean(selectedSailorId)}

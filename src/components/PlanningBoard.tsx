@@ -43,31 +43,31 @@ export function PlanningBoard({ boats, onBoatsChange }: PlanningBoardProps) {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-5">
-      <div className="flex items-center justify-between mb-5">
+    <div className="flex-1 overflow-y-auto p-3 sm:p-5">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
             Fleet Allocation Board
           </h2>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="mt-0.5 text-xs text-gray-400">
             {boats.length} boats · Drag to reorder
           </p>
         </div>
-        <div className="flex items-center gap-4 text-xs text-gray-400">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-400 sm:gap-4 sm:text-xs">
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+            <span className="inline-block h-2 w-2 rounded-full bg-green-400" />
             Ready
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+            <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
             Review
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+            <span className="inline-block h-2 w-2 rounded-full bg-red-400" />
             Action
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-gray-200 inline-block" />
+            <span className="inline-block h-2 w-2 rounded-full bg-gray-200" />
             Idle
           </span>
         </div>
@@ -79,7 +79,7 @@ export function PlanningBoard({ boats, onBoatsChange }: PlanningBoardProps) {
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={boats.map((b) => b.id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(210px,1fr))]">
             {boats.map((boat) => (
               <BoatCard key={boat.id} boat={boat} />
             ))}

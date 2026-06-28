@@ -48,7 +48,7 @@ export default function PlannerPage() {
   }, [boats]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
+    <div className="flex min-h-screen flex-col overflow-x-hidden overflow-y-auto bg-gray-50">
       {/* Header */}
       <SessionHeader
         session={SESSION_DATA}
@@ -57,7 +57,7 @@ export default function PlannerPage() {
       />
 
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col min-h-0 lg:flex-row">
         {/* Left sidebar */}
         <LeftSidebar
           session={SESSION_DATA}
@@ -67,7 +67,7 @@ export default function PlannerPage() {
         />
 
         {/* Main content area */}
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="order-1 flex flex-1 flex-col min-h-0 lg:order-2">
           <PlanningBoard boats={boats} onBoatsChange={setBoats} />
           <SailorPool
             sailors={SESSION_DATA.sailors}

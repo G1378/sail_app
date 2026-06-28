@@ -84,7 +84,7 @@ export function LeftSidebar({
   const stage3 = sailors.filter((s) => s.stage === 3).length;
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-gray-50 border-r border-gray-100 overflow-y-auto p-3 flex flex-col gap-3">
+    <aside className="order-2 w-full max-h-[42vh] overflow-y-auto border-b border-gray-100 bg-gray-50 p-3 flex flex-col gap-3 lg:order-1 lg:w-56 lg:flex-shrink-0 lg:border-b-0 lg:border-r lg:max-h-none">
       {/* Sailors */}
       <SidebarCard icon={Users} title="Available Sailors">
         <StatRow label="Total" value={sailors.length} />

@@ -28,7 +28,7 @@ function SailorChip({ sailor }: SailorChipProps) {
       whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
       transition={{ duration: 0.15 }}
       draggable
-      className="flex-shrink-0 w-44 bg-white rounded-xl border border-gray-100 p-3 cursor-grab hover:border-blue-200 transition-colors"
+      className="w-full max-w-[11rem] flex-shrink-0 rounded-xl border border-gray-100 bg-white p-3 transition-colors cursor-grab hover:border-blue-200 sm:w-44"
     >
       <div className="flex items-start justify-between mb-1.5">
         <span className="text-xs font-semibold text-gray-900">{sailor.name}</span>
@@ -89,7 +89,7 @@ export function SailorPool({ sailors, isOpen, onToggle }: SailorPoolProps) {
       {/* Panel header */}
       <button
         onClick={onToggle}
-        className="w-full flex items-center gap-3 px-5 h-11 hover:bg-gray-50 transition-colors group"
+        className="group flex h-auto w-full items-center gap-3 px-3 py-3 transition-colors hover:bg-gray-50 sm:h-11 sm:px-5"
       >
         <motion.span
           animate={{ rotate: isOpen ? 0 : 180 }}
@@ -104,7 +104,7 @@ export function SailorPool({ sailors, isOpen, onToggle }: SailorPoolProps) {
         <span className="text-sm font-medium text-gray-700 flex-1 text-left">
           Sailor Pool
         </span>
-        <span className="text-xs text-gray-400">
+        <span className="text-left text-xs text-gray-400">
           {sailors.length} sailors · Drag onto a boat
         </span>
       </button>
@@ -119,7 +119,7 @@ export function SailorPool({ sailors, isOpen, onToggle }: SailorPoolProps) {
             transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="flex gap-2.5 px-5 pb-4 pt-1 overflow-x-auto h-[172px] items-start">
+            <div className="flex h-[172px] items-start gap-2.5 overflow-x-auto px-3 pb-4 pt-1 sm:px-5">
               {sailors.map((sailor) => (
                 <SailorChip key={sailor.id} sailor={sailor} />
               ))}

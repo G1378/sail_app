@@ -7,9 +7,11 @@ import type { Boat } from "@/types";
 interface PlanningBoardProps {
   boats: Boat[];
   onBoatsChange: (boats: Boat[]) => void;
+  onAssignByTap?: (boatId: string) => void;
+  assignEnabled?: boolean;
 }
 
-export function PlanningBoard({ boats, onBoatsChange }: PlanningBoardProps) {
+export function PlanningBoard({ boats, onBoatsChange, onAssignByTap, assignEnabled }: PlanningBoardProps) {
   return (
     <div className="w-full p-3 sm:p-5 lg:flex-1 lg:overflow-y-auto">
       <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
@@ -44,7 +46,12 @@ export function PlanningBoard({ boats, onBoatsChange }: PlanningBoardProps) {
         <SortableContext items={boats.map((b) => b.id)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
             {boats.map((boat) => (
-              <BoatCard key={boat.id} boat={boat} />
+              <BoatCard
+                key={boat.id}
+                boat={boat}
+                onAssignSailor={() => onAssignByTap?.(boat.id)}
+                assignEnabled={Boolean(assignEnabled)}
+              />
             ))}
           </div>
         </SortableContext>

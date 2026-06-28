@@ -24,6 +24,8 @@ export default function PlannerPage() {
     message: "",
   });
 
+  const [selectedSailorId, setSelectedSailorId] = useState<string | null>(null);
+
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
     setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2600);
@@ -122,6 +124,22 @@ export default function PlannerPage() {
     [boats, sailors, assignSailorToBoat]
   );
 
+  const handleAssignByTap = useCallback(
+    (boatId: string) => {
+      if (!selectedSailorId) return;
+      const sailor = sailors.find((s) => s.id === selectedSailorId);
+      if (!sailor) return;
+
+      setBoats((currentBoats) =>
+        currentBoats.map((boat) => (boat.id === boatId ? assignSailorToBoat(boat, sailor) : boat))
+      );
+      setSailors((currentSailors) => currentSailors.filter((s) => s.id !== selectedSailorId));
+      setSelectedSailorId(null);
+      showToast(`${sailor.name} assigned`);
+    },
+    [selectedSailorId, sailors, assignSailorToBoat, showToast]
+  );
+
   const boatStats = useMemo(() => {
     const byType: Record<string, number> = {};
     for (const b of boats) {
@@ -163,11 +181,18 @@ export default function PlannerPage() {
 
         {/* Main content area */}
         <div className="order-1 flex w-full flex-col lg:order-2 lg:flex-1 lg:min-h-0">
-          <PlanningBoard boats={boats} onBoatsChange={setBoats} />
+          <PlanningBoard
+            boats={boats}
+            onBoatsChange={setBoats}
+            onAssignByTap={handleAssignByTap}
+            assignEnabled={Boolean(selectedSailorId)}
+          />
           <SailorPool
             sailors={sailors}
             isOpen={poolOpen}
             onToggle={() => setPoolOpen((o) => !o)}
+            selectedSailorId={selectedSailorId}
+            onSelectSailor={(id) => setSelectedSailorId((cur) => (cur === id ? null : id))}
           />
         </div>
 

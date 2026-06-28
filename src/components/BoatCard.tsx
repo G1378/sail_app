@@ -35,9 +35,11 @@ function PersonRow({ label, name }: PersonRowProps) {
 
 interface BoatCardProps {
   boat: Boat;
+  onAssignSailor?: () => void;
+  assignEnabled?: boolean;
 }
 
-export function BoatCard({ boat }: BoatCardProps) {
+export function BoatCard({ boat, onAssignSailor, assignEnabled }: BoatCardProps) {
   const {
     attributes,
     listeners,
@@ -73,6 +75,9 @@ export function BoatCard({ boat }: BoatCardProps) {
         style={style}
         {...attributes}
         {...listeners}
+        onClick={() => {
+          if (assignEnabled && onAssignSailor) onAssignSailor();
+        }}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
         whileHover={{ y: -2, boxShadow: "0 8px 24px rgba(0,0,0,0.07)" }}

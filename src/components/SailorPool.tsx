@@ -9,6 +9,8 @@ import type { Sailor } from "@/types";
 
 interface SailorChipProps {
   sailor: Sailor;
+  selected?: boolean;
+  onSelect?: () => void;
 }
 
 const STAGE_COLORS: Record<number, string> = {
@@ -24,7 +26,7 @@ const ROLE_ICONS: Record<string, string> = {
   Either: "↔",
 };
 
-function SailorChip({ sailor }: SailorChipProps) {
+function SailorChip({ sailor, selected, onSelect }: SailorChipProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `sailor:${sailor.id}`,
   });
@@ -42,8 +44,16 @@ function SailorChip({ sailor }: SailorChipProps) {
         whileHover={{ y: -2, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}
         animate={{ opacity: isDragging ? 0.5 : 1 }}
         transition={{ duration: 0.15 }}
-        className="w-full max-w-[11rem] min-w-[12rem] flex-shrink-0 rounded-xl border border-gray-100 bg-white p-3 transition-colors cursor-grab hover:border-blue-200 sm:min-w-0 sm:w-44"
-    >
+        onClick={(e) => {
+          // prevent click from interfering with drag
+          if ((e as any).detail === 1) onSelect?.();
+        }}
+        className={cn(
+          "w-full max-w-[11rem] min-w-[12rem] flex-shrink-0 rounded-xl border bg-white p-3 transition-colors cursor-grab sm:min-w-0 sm:w-44",
+          "border-gray-100",
+          selected ? "ring-2 ring-blue-300" : "hover:border-blue-200"
+        )}
+      >
       <div className="flex items-start justify-between mb-1.5">
         <span className="text-xs font-semibold text-gray-900">{sailor.name}</span>
         <GripVertical className="w-3 h-3 text-gray-200 mt-0.5" />
@@ -95,9 +105,11 @@ interface SailorPoolProps {
   sailors: Sailor[];
   isOpen: boolean;
   onToggle: () => void;
+  selectedSailorId?: string | null;
+  onSelectSailor?: (id: string) => void;
 }
 
-export function SailorPool({ sailors, isOpen, onToggle }: SailorPoolProps) {
+export function SailorPool({ sailors, isOpen, onToggle, selectedSailorId, onSelectSailor }: SailorPoolProps) {
   return (
     <div className="flex-shrink-0 bg-white border-t border-gray-100">
       {/* Panel header */}
@@ -135,7 +147,12 @@ export function SailorPool({ sailors, isOpen, onToggle }: SailorPoolProps) {
           >
             <div className="flex h-[172px] items-start gap-2.5 overflow-x-auto px-3 pb-4 pt-1 sm:px-5">
               {sailors.map((sailor) => (
-                <SailorChip key={sailor.id} sailor={sailor} />
+                <SailorChip
+                  key={sailor.id}
+                  sailor={sailor}
+                  selected={selectedSailorId === sailor.id}
+                  onSelect={() => onSelectSailor?.(sailor.id)}
+                />
               ))}
             </div>
           </motion.div>

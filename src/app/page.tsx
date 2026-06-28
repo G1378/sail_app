@@ -30,6 +30,7 @@ export default function PlannerPage() {
   const [instructorPoolOpen, setInstructorPoolOpen] = useState(true);
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
   const [instructorGroups, setInstructorGroups] = useState<Record<string, string[]>>({});
+  const [activeDragType, setActiveDragType] = useState<"boat" | "sailor" | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -98,6 +99,7 @@ export default function PlannerPage() {
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setActiveDragType(null);
       const activeId = String(event.active.id);
       const overId = String(event.over?.id ?? "");
       if (!overId) return;
@@ -112,9 +114,9 @@ export default function PlannerPage() {
         return;
       }
 
-      if (activeId.startsWith("sailor:") && boats.some((boat) => boat.id === overId)) {
+      if (activeId.startsWith("sailor:") && overId.startsWith("boat-drop:")) {
         const sailorId = activeId.split(":")[1];
-        const targetBoatId = overId;
+        const targetBoatId = overId.split(":")[1];
         const sailor = sailors.find((s) => s.id === sailorId);
         if (!sailor) return;
 
@@ -211,7 +213,10 @@ export default function PlannerPage() {
       />
 
       {/* Body */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(event) => {
+          const activeId = String(event.active.id);
+          setActiveDragType(activeId.startsWith("sailor:") ? "sailor" : boats.some((b) => b.id === activeId) ? "boat" : null);
+        }} onDragEnd={handleDragEnd}>
         <SortableContext items={boats.map((b) => b.id)} strategy={rectSortingStrategy}>
         <div className="mx-auto flex w-full max-w-full px-4 flex-1 flex-col min-h-0 lg:flex-row lg:px-0 lg:max-w-screen-2xl">
         {/* Left sidebar */}
@@ -240,6 +245,7 @@ export default function PlannerPage() {
             selectedInstructors={selectedInstructors}
             onAssignByTap={handleAssignByTap}
             assignEnabled={Boolean(selectedSailorId)}
+            activeDragType={activeDragType}
           />
           <SailorPool
             sailors={sailors}

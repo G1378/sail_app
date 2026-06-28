@@ -38,9 +38,10 @@ interface BoatCardProps {
   onAssignSailor?: () => void;
   assignEnabled?: boolean;
   draggable?: boolean;
+  disableBoatDrop?: boolean;
 }
 
-export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true }: BoatCardProps) {
+export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true, disableBoatDrop = false }: BoatCardProps) {
   const sortable = draggable
     ? useSortable({ id: boat.id })
     : ({} as ReturnType<typeof useSortable>);
@@ -55,7 +56,8 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
   } = sortable as any;
 
   const { setNodeRef: setDroppableNodeRef, isOver } = useDroppable({
-    id: boat.id,
+    id: `boat-drop:${boat.id}`,
+    disabled: disableBoatDrop,
   });
 
   const style = {

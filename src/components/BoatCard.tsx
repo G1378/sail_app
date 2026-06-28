@@ -37,9 +37,14 @@ interface BoatCardProps {
   boat: Boat;
   onAssignSailor?: () => void;
   assignEnabled?: boolean;
+  draggable?: boolean;
 }
 
-export function BoatCard({ boat, onAssignSailor, assignEnabled }: BoatCardProps) {
+export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true }: BoatCardProps) {
+  const sortable = draggable
+    ? useSortable({ id: boat.id })
+    : ({} as ReturnType<typeof useSortable>);
+
   const {
     attributes,
     listeners,
@@ -47,7 +52,7 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled }: BoatCardProps)
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: boat.id });
+  } = sortable as any;
 
   const { setNodeRef: setDroppableNodeRef, isOver } = useDroppable({
     id: boat.id,
@@ -71,12 +76,14 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled }: BoatCardProps)
   return (
     <div ref={setDroppableNodeRef}>
       <motion.div
-        ref={setNodeRef}
+        ref={draggable ? setNodeRef : undefined}
         style={style}
-        {...attributes}
-        {...listeners}
+        {...(draggable ? attributes : {})}
+        {...(draggable ? listeners : {})}
         onClick={() => {
-          if (assignEnabled && onAssignSailor) onAssignSailor();
+          if (assignEnabled && onAssignSailor) {
+            onAssignSailor();
+          }
         }}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: isDragging ? 0.4 : 1, y: 0 }}
@@ -110,7 +117,6 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled }: BoatCardProps)
 
         {/* People */}
         <div className="flex flex-col gap-2.5">
-          <PersonRow label="Instructor" name={boat.instructor} />
           <PersonRow label="Helm" name={boat.helm} />
           {boat.capacity > 1 && <PersonRow label="Crew" name={boat.crew} />}
         </div>

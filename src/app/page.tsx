@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
+import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 import { SessionHeader } from "@/components/SessionHeader";
 import { LeftSidebar } from "@/components/LeftSidebar";
 import { PlanningBoard } from "@/components/PlanningBoard";
 import { RightSidebar } from "@/components/RightSidebar";
 import { SailorPool } from "@/components/SailorPool";
+import { InstructorPool } from "@/components/InstructorPool";
 import { Toast } from "@/components/ui/Toast";
 import { SESSION_DATA } from "@/data/session";
 import type { Boat, Sailor } from "@/types";
@@ -25,6 +26,9 @@ export default function PlannerPage() {
   });
 
   const [selectedSailorId, setSelectedSailorId] = useState<string | null>(null);
+  const [instructors, setInstructors] = useState<string[]>(SESSION_DATA.instructors);
+  const [instructorPoolOpen, setInstructorPoolOpen] = useState(true);
+  const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -120,6 +124,15 @@ export default function PlannerPage() {
         );
         setSailors((currentSailors) => currentSailors.filter((s) => s.id !== sailorId));
       }
+
+      // instructor group drop: accept boat being dragged into instructor group
+      if (boats.some((b) => b.id === activeId) && overId.startsWith("instructor:")) {
+        const instructorName = overId.split(":")[1];
+        setBoats((currentBoats) =>
+          currentBoats.map((boat) => (boat.id === activeId ? { ...boat, instructor: instructorName } : boat))
+        );
+        return;
+      }
     },
     [boats, sailors, assignSailorToBoat]
   );
@@ -139,6 +152,7 @@ export default function PlannerPage() {
     },
     [selectedSailorId, sailors, assignSailorToBoat, showToast]
   );
+
 
   const boatStats = useMemo(() => {
     const byType: Record<string, number> = {};
@@ -168,6 +182,7 @@ export default function PlannerPage() {
 
       {/* Body */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={boats.map((b) => b.id)} strategy={rectSortingStrategy}>
         <div className="mx-auto flex w-full max-w-full px-4 flex-1 flex-col min-h-0 lg:flex-row lg:px-0 lg:max-w-screen-2xl">
         {/* Left sidebar */}
         <LeftSidebar
@@ -184,6 +199,7 @@ export default function PlannerPage() {
           <PlanningBoard
             boats={boats}
             onBoatsChange={setBoats}
+            selectedInstructors={selectedInstructors}
             onAssignByTap={handleAssignByTap}
             assignEnabled={Boolean(selectedSailorId)}
           />
@@ -193,6 +209,17 @@ export default function PlannerPage() {
             onToggle={() => setPoolOpen((o) => !o)}
             selectedSailorId={selectedSailorId}
             onSelectSailor={(id) => setSelectedSailorId((cur) => (cur === id ? null : id))}
+          />
+          <InstructorPool
+            instructors={instructors}
+            isOpen={instructorPoolOpen}
+            onToggle={() => setInstructorPoolOpen((o) => !o)}
+            selectedInstructors={selectedInstructors}
+            onSelectInstructor={(name) =>
+              setSelectedInstructors((current) =>
+                current.includes(name) ? current.filter((item) => item !== name) : [...current, name]
+              )
+            }
           />
         </div>
 
@@ -204,6 +231,7 @@ export default function PlannerPage() {
           onClose={() => setRightOpen(false)}
         />
       </div>
+        </SortableContext>
       </DndContext>
 
       {/* Toast */}

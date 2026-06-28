@@ -39,9 +39,11 @@ interface BoatCardProps {
   assignEnabled?: boolean;
   draggable?: boolean;
   disableBoatDrop?: boolean;
+  onSelectBoat?: (boatId: string) => void;
+  selectedBoatId?: string | null;
 }
 
-export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true, disableBoatDrop = false }: BoatCardProps) {
+export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true, disableBoatDrop = false, onSelectBoat, selectedBoatId }: BoatCardProps) {
   const sortable = draggable
     ? useSortable({ id: boat.id })
     : ({} as ReturnType<typeof useSortable>);
@@ -65,6 +67,8 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
     transition,
   };
 
+  const isSelected = selectedBoatId === boat.id;
+
   const statusConfig = getStatusConfig(boat.status);
   const typeColor = getBoatTypeColor(boat.type);
   const capacityPct = Math.min(100, Math.round((boat.filled / boat.capacity) * 100));
@@ -83,8 +87,15 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
         {...(draggable ? attributes : {})}
         {...(draggable ? listeners : {})}
         onClick={() => {
+          // If sailor-assign mode is active, prefer assigning sailor to this boat
           if (assignEnabled && onAssignSailor) {
             onAssignSailor();
+            return;
+          }
+
+          // Otherwise, treat click as selecting this boat for group assignment
+          if (onSelectBoat) {
+            onSelectBoat(boat.id);
           }
         }}
         initial={{ opacity: 0, y: 8 }}
@@ -96,7 +107,8 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
           isDragging && "shadow-xl scale-[0.98]",
           boat.status === "alert" && "border-red-100",
           boat.status === "warn" && "border-amber-100",
-          isOver && "border-blue-300 bg-blue-50/70"
+          isOver && "border-blue-300 bg-blue-50/70",
+          isSelected && "ring-2 ring-blue-300 bg-blue-50/40"
         )}
       >
         {/* Header */}

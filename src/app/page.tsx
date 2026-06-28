@@ -31,6 +31,7 @@ export default function PlannerPage() {
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
   const [instructorGroups, setInstructorGroups] = useState<Record<string, string[]>>({});
   const [activeDragType, setActiveDragType] = useState<"boat" | "sailor" | null>(null);
+  const [selectedBoatId, setSelectedBoatId] = useState<string | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
@@ -126,6 +127,48 @@ export default function PlannerPage() {
           )
         );
         setSailors((currentSailors) => currentSailors.filter((s) => s.id !== sailorId));
+        return;
+      }
+
+      if (boats.some((b) => b.id === activeId) && overId.startsWith("boat-drop:")) {
+        const targetBoatId = overId.split(":")[1];
+        const targetBoat = boats.find((boat) => boat.id === targetBoatId);
+        if (!targetBoat) return;
+
+        const instructorName = targetBoat.instructor;
+
+        setBoats((currentBoats) =>
+          currentBoats.map((boat) =>
+            boat.id === activeId
+              ? { ...boat, instructor: instructorName }
+              : boat
+          )
+        );
+
+        setInstructorGroups((currentGroups) => {
+          const nextGroups = Object.fromEntries(
+            Object.entries(currentGroups).map(([key, ids]) => [
+              key,
+              ids.filter((id) => id !== activeId),
+            ])
+          );
+
+          if (instructorName) {
+            nextGroups[instructorName] = Array.from(
+              new Set([...(nextGroups[instructorName] ?? []), activeId])
+            );
+          }
+
+          Object.keys(nextGroups).forEach((key) => {
+            if (nextGroups[key].length === 0) {
+              delete nextGroups[key];
+            }
+          });
+
+          return nextGroups;
+        });
+
+        return;
       }
 
       // instructor group drop: accept boat being dragged into instructor group
@@ -183,6 +226,42 @@ export default function PlannerPage() {
       showToast(`${sailor.name} assigned`);
     },
     [selectedSailorId, sailors, assignSailorToBoat, showToast]
+  );
+
+  const handleAssignBoatToInstructor = useCallback(
+    (instructorName: string) => {
+      if (!selectedBoatId) return;
+
+      setBoats((currentBoats) =>
+        currentBoats.map((boat) =>
+          boat.id === selectedBoatId ? { ...boat, instructor: instructorName === "unassigned" ? null : instructorName } : boat
+        )
+      );
+
+      setInstructorGroups((currentGroups) => {
+        const nextGroups = Object.fromEntries(
+          Object.entries(currentGroups).map(([key, ids]) => [key, ids.filter((id) => id !== selectedBoatId)])
+        );
+
+        if (instructorName !== "unassigned") {
+          nextGroups[instructorName] = Array.from(new Set([...(nextGroups[instructorName] ?? []), selectedBoatId]));
+        }
+
+        Object.keys(nextGroups).forEach((key) => {
+          if (nextGroups[key].length === 0) {
+            delete nextGroups[key];
+          }
+        });
+
+        return nextGroups;
+      });
+
+      setSelectedBoatId(null);
+      showToast(
+        instructorName === "unassigned" ? "Boat unassigned" : `Boat assigned to ${instructorName}`
+      );
+    },
+    [selectedBoatId, showToast]
   );
 
 
@@ -246,6 +325,9 @@ export default function PlannerPage() {
             onAssignByTap={handleAssignByTap}
             assignEnabled={Boolean(selectedSailorId)}
             activeDragType={activeDragType}
+            onSelectBoat={(id) => setSelectedBoatId((cur) => (cur === id ? null : id))}
+            selectedBoatId={selectedBoatId}
+            onAssignBoatToInstructor={handleAssignBoatToInstructor}
           />
           <SailorPool
             sailors={sailors}

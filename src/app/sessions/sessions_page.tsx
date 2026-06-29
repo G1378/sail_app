@@ -1,0 +1,355 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import {
+  loadSessions,
+  createSession,
+  updateSessionStatus,
+  deleteSession,
+  getSignupState,
+  type Session,
+  type SessionStatus,
+} from "@/lib/sessions";
+
+// ── Helpers ────────────────────────────────────────────────────
+
+function statusColour(status: SessionStatus) {
+  return {
+    draft:     "bg-gray-100 text-gray-600",
+    open:      "bg-green-100 text-green-700",
+    closed:    "bg-amber-100 text-amber-700",
+    completed: "bg-blue-100 text-blue-700",
+  }[status];
+}
+
+function fmt(dt: string) {
+  return new Date(dt).toLocaleString("en-GB", {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// ── Create session form ────────────────────────────────────────
+
+function CreateForm({ onCreated }: { onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const todayDate = new Date().toISOString().split("T")[0];
+
+  const [form, setForm] = useState({
+    title: "",
+    date: todayDate,
+    signup_opens_at_date:  todayDate,
+    signup_opens_at_time:  "08:00",
+    signup_closes_at_date: todayDate,
+    signup_closes_at_time: "10:00",
+    notes: "",
+  });
+
+  function set(field: string, value: string) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    const opens  = new Date(`${form.signup_opens_at_date}T${form.signup_opens_at_time}`);
+    const closes = new Date(`${form.signup_closes_at_date}T${form.signup_closes_at_time}`);
+
+    if (closes <= opens) {
+      setError("Sign-off time must be after sign-on time.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createSession({
+        title:            form.title,
+        date:             form.date,
+        signup_opens_at:  opens.toISOString(),
+        signup_closes_at: closes.toISOString(),
+        status:           "draft",
+        notes:            form.notes,
+      });
+      setOpen(false);
+      setForm({ title: "", date: todayDate, signup_opens_at_date: todayDate, signup_opens_at_time: "08:00", signup_closes_at_date: todayDate, signup_closes_at_time: "10:00", notes: "" });
+      onCreated();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to create session");
+    }
+    setSaving(false);
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+      >
+        + New Session
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-base font-semibold text-gray-900">New Session</h2>
+        <button onClick={() => setOpen(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Session title</label>
+          <input
+            required
+            value={form.title}
+            onChange={(e) => set("title", e.target.value)}
+            placeholder="e.g. Saturday Morning — Trapeze Focus"
+            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Session date</label>
+          <input
+            type="date"
+            required
+            value={form.date}
+            onChange={(e) => set("date", e.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Sign-on opens</label>
+            <input type="date" value={form.signup_opens_at_date} onChange={(e) => set("signup_opens_at_date", e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm mb-2 focus:border-blue-400 focus:outline-none" />
+            <input type="time" value={form.signup_opens_at_time} onChange={(e) => set("signup_opens_at_time", e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Sign-on closes</label>
+            <input type="date" value={form.signup_closes_at_date} onChange={(e) => set("signup_closes_at_date", e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm mb-2 focus:border-blue-400 focus:outline-none" />
+            <input type="time" value={form.signup_closes_at_time} onChange={(e) => set("signup_closes_at_time", e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5">Notes (optional)</label>
+          <textarea
+            value={form.notes}
+            onChange={(e) => set("notes", e.target.value)}
+            rows={2}
+            placeholder="Any extra info for sailors..."
+            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm resize-none focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+        </div>
+
+        {error && (
+          <p className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</p>
+        )}
+
+        <button
+          type="submit"
+          disabled={saving}
+          className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+        >
+          {saving ? "Creating…" : "Create Session"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ── Session card ───────────────────────────────────────────────
+
+function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const signupState = getSignupState(session);
+
+  async function handleDelete() {
+    await deleteSession(session.id);
+    onRefresh();
+  }
+
+  async function handleStatusChange(status: SessionStatus) {
+    await updateSessionStatus(session.id, status);
+    onRefresh();
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">{session.title}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {new Date(session.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+        <span className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${statusColour(session.status)}`}>
+          {session.status}
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-1 text-xs text-gray-500">
+        <div className="flex items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${signupState === "open" ? "bg-green-500" : signupState === "before" ? "bg-amber-400" : "bg-gray-300"}`} />
+          Sign-on opens: <span className="font-medium text-gray-700">{fmt(session.signup_opens_at)}</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-gray-200" />
+          Sign-on closes: <span className="font-medium text-gray-700">{fmt(session.signup_closes_at)}</span>
+        </div>
+      </div>
+
+      {session.notes && (
+        <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">{session.notes}</p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <Link
+          href={`/sessions/${session.id}`}
+          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          View sign-ups
+        </Link>
+
+        <Link
+          href={`/signup/${session.id}`}
+          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+        >
+          Sailor sign-up page ↗
+        </Link>
+
+        {session.status === "draft" && (
+          <button
+            onClick={() => handleStatusChange("open")}
+            className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 transition-colors"
+          >
+            Publish
+          </button>
+        )}
+        {session.status === "open" && (
+          <button
+            onClick={() => handleStatusChange("closed")}
+            className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-600 transition-colors"
+          >
+            Close sign-ups
+          </button>
+        )}
+        {(session.status === "open" || session.status === "closed") && (
+          <button
+            onClick={() => handleStatusChange("completed")}
+            className="rounded-lg bg-gray-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors"
+          >
+            Mark complete
+          </button>
+        )}
+
+        {confirming ? (
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-xs text-gray-500">Delete?</span>
+            <button onClick={handleDelete} className="text-xs font-medium text-red-600 hover:underline">Yes</button>
+            <button onClick={() => setConfirming(false)} className="text-xs text-gray-400 hover:underline">No</button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirming(true)} className="ml-auto text-xs text-gray-300 hover:text-red-400 transition-colors">
+            Delete
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────
+
+export default function SessionsPage() {
+  const router = useRouter();
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+
+  async function refresh() {
+    const data = await loadSessions();
+    setSessions(data);
+  }
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) { router.push("/login"); return; }
+      setEmail(user.email ?? "");
+    });
+    loadSessions().then((data) => {
+      setSessions(data);
+      setLoading(false);
+    });
+  }, [router]);
+
+  const upcoming  = sessions.filter((s) => s.status !== "completed");
+  const completed = sessions.filter((s) => s.status === "completed");
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-3">
+        <Link href="/" className="text-xl">⛵</Link>
+        <span className="text-sm font-semibold text-gray-900">Session Manager</span>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-gray-400 hidden sm:block">{email}</span>
+          <Link href="/" className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Planner</Link>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Sessions</h1>
+            <p className="text-sm text-gray-400 mt-0.5">Create and manage sailor sign-up sessions.</p>
+          </div>
+          <CreateForm onCreated={refresh} />
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-gray-400">
+            <span className="text-3xl animate-bounce mr-3">⛵</span>
+            <span className="text-sm">Loading…</span>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-8">
+            {upcoming.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {upcoming.map((s) => (
+                  <SessionCard key={s.id} session={s} onRefresh={refresh} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400">
+                No upcoming sessions yet — create one above.
+              </div>
+            )}
+
+            {completed.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Completed</p>
+                <div className="flex flex-col gap-3">
+                  {completed.map((s) => (
+                    <SessionCard key={s.id} session={s} onRefresh={refresh} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

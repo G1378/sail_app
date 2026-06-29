@@ -1,0 +1,43 @@
+import { createClient } from "@supabase/supabase-js";
+
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!url || !key) {
+  throw new Error(
+    "Missing Supabase env vars. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local"
+  );
+}
+
+export const supabase = createClient(url, key);
+
+// ── Row types that match the DB schema ────────────────────────
+
+export interface DbBoat {
+  id: string;
+  name: string;
+  type: "Feva" | "Pico" | "Topper" | "Optimist";
+  instructor: string | null;
+  helm: string | null;
+  crew: string | null;
+  goal: string;
+  capacity: number;
+  filled: number;
+  status: "ready" | "warn" | "alert" | "idle";
+  warning: string | null;
+  sort_order: number;
+}
+
+export interface DbSailor {
+  id: string;
+  name: string;
+  stage: "1" | "2" | "3" | "4";
+  confidence: "High" | "Med" | "Low";
+  role: "Helm" | "Crew" | "Either";
+  skills: string[];
+}
+
+export interface DbInstructor {
+  id: string;
+  name: string;
+}

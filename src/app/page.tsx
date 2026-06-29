@@ -1,211 +1,249 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { DndContext, closestCenter, type DragEndEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import {
+  DndContext,
+  closestCenter,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
-import { SessionHeader } from "@/components/SessionHeader";
-import { LeftSidebar } from "@/components/LeftSidebar";
-import { PlanningBoard } from "@/components/PlanningBoard";
-import { RightSidebar } from "@/components/RightSidebar";
-import { SailorPool } from "@/components/SailorPool";
+import { SessionHeader }  from "@/components/SessionHeader";
+import { LeftSidebar }    from "@/components/LeftSidebar";
+import { PlanningBoard }  from "@/components/PlanningBoard";
+import { RightSidebar }   from "@/components/RightSidebar";
+import { SailorPool }     from "@/components/SailorPool";
 import { InstructorPool } from "@/components/InstructorPool";
-import { Toast } from "@/components/ui/Toast";
-import { SESSION_DATA } from "@/data/session";
+import { Toast }          from "@/components/ui/Toast";
+import { SESSION_CONFIG } from "@/data/session";
+import {
+  loadBoats,
+  loadSailors,
+  loadInstructors,
+  saveBoat,
+  saveBoatOrder,
+  removeSailorFromPool,
+} from "@/lib/db";
 import type { Boat, Sailor } from "@/types";
 
+// ── Loading / error screens ────────────────────────────────────
+
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex flex-col items-center gap-3 text-gray-400">
+        <span className="text-4xl animate-bounce">⛵</span>
+        <p className="text-sm font-medium">Loading session data…</p>
+      </div>
+    </div>
+  );
+}
+
+function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex flex-col items-center gap-4 max-w-sm text-center px-6">
+        <span className="text-4xl">⚠️</span>
+        <p className="text-sm font-semibold text-gray-800">Failed to load session data</p>
+        <p className="text-xs text-gray-500 font-mono bg-gray-100 rounded px-3 py-2 w-full break-all">{message}</p>
+        <button
+          onClick={onRetry}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          Retry
+        </button>
+        <p className="text-xs text-gray-400">
+          Make sure <code>NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
+          <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> are set in{" "}
+          <code>.env.local</code>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ──────────────────────────────────────────────────
+
 export default function PlannerPage() {
-  const [boats, setBoats] = useState<Boat[]>(SESSION_DATA.boats);
-  const [sailors, setSailors] = useState<Sailor[]>(SESSION_DATA.sailors);
-  const [notes, setNotes] = useState(SESSION_DATA.notes);
-  const [poolOpen, setPoolOpen] = useState(true);
-    const [leftOpen, setLeftOpen] = useState(false);
-    const [rightOpen, setRightOpen] = useState(false);
+  // ── DB state ──
+  const [dbStatus, setDbStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [dbError, setDbError] = useState("");
+
+  // ── App state ──
+  const [boats, setBoats]           = useState<Boat[]>([]);
+  const [sailors, setSailors]       = useState<Sailor[]>([]);
+  const [instructors, setInstructors] = useState<string[]>([]);
+  const [notes, setNotes]           = useState(SESSION_CONFIG.notes);
+
+  const [poolOpen, setPoolOpen]               = useState(true);
+  const [leftOpen, setLeftOpen]               = useState(false);
+  const [rightOpen, setRightOpen]             = useState(false);
+  const [instructorPoolOpen, setInstructorPoolOpen] = useState(true);
+
+  const [selectedSailorId, setSelectedSailorId]     = useState<string | null>(null);
+  const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
+  const [instructorGroups, setInstructorGroups]     = useState<Record<string, string[]>>({});
+  const [activeDragType, setActiveDragType]         = useState<"boat" | "sailor" | null>(null);
+  const [selectedBoatId, setSelectedBoatId]         = useState<string | null>(null);
+
   const [toast, setToast] = useState<{ visible: boolean; message: string }>({
     visible: false,
     message: "",
   });
 
-  const [selectedSailorId, setSelectedSailorId] = useState<string | null>(null);
-  const [instructors, setInstructors] = useState<string[]>(SESSION_DATA.instructors);
-  const [instructorPoolOpen, setInstructorPoolOpen] = useState(true);
-  const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
-  const [instructorGroups, setInstructorGroups] = useState<Record<string, string[]>>({});
-  const [activeDragType, setActiveDragType] = useState<"boat" | "sailor" | null>(null);
-  const [selectedBoatId, setSelectedBoatId] = useState<string | null>(null);
+  // ── Load from Supabase ─────────────────────────────────────
+  const loadAll = useCallback(async () => {
+    setDbStatus("loading");
+    try {
+      const [loadedBoats, loadedSailors, loadedInstructors] = await Promise.all([
+        loadBoats(),
+        loadSailors(),
+        loadInstructors(),
+      ]);
+      setBoats(loadedBoats);
+      setSailors(loadedSailors);
+      setInstructors(loadedInstructors);
 
+      // Re-derive instructorGroups from boat.instructor field
+      const groups: Record<string, string[]> = {};
+      for (const boat of loadedBoats) {
+        if (boat.instructor) {
+          groups[boat.instructor] = [...(groups[boat.instructor] ?? []), boat.id];
+        }
+      }
+      setInstructorGroups(groups);
+      setDbStatus("ready");
+    } catch (err: unknown) {
+      setDbError(err instanceof Error ? err.message : String(err));
+      setDbStatus("error");
+    }
+  }, []);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // ── Toast helper ──────────────────────────────────────────
   const showToast = useCallback((message: string) => {
     setToast({ visible: true, message });
     setTimeout(() => setToast((t) => ({ ...t, visible: false })), 2600);
   }, []);
 
+  // ── Handlers ──────────────────────────────────────────────
   const handleGenerate = useCallback(() => {
-    showToast("Allocation generated — review assignments on the board");
+    showToast("Auto-allocation coming soon");
   }, [showToast]);
 
-  const handleSave = useCallback(() => {
-    showToast("Session saved successfully");
-  }, [showToast]);
+  const handleSave = useCallback(async () => {
+    try {
+      await Promise.all(boats.map(saveBoat));
+      showToast("Session saved ✓");
+    } catch {
+      showToast("Save failed — check connection");
+    }
+  }, [boats, showToast]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
-    })
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
-  const assignSailorToBoat = useCallback(
-    (boat: Boat, sailor: Sailor) => {
-      if (boat.filled >= boat.capacity) return boat;
+  const assignSailorToBoat = useCallback((boat: Boat, sailor: Sailor): Boat => {
+    if (boat.filled >= boat.capacity) return boat;
 
-      const updatedBoat = { ...boat };
-      const hasHelm = Boolean(updatedBoat.helm);
-      const hasCrew = Boolean(updatedBoat.crew);
+    const updatedBoat = { ...boat };
 
-      if (updatedBoat.capacity === 1) {
-        updatedBoat.helm = sailor.name;
-      } else if (
-        !hasHelm &&
-        (sailor.role === "Helm" || sailor.role === "Either")
-      ) {
-        updatedBoat.helm = sailor.name;
-      } else if (!hasCrew && (sailor.role === "Crew" || sailor.role === "Either")) {
-        updatedBoat.crew = sailor.name;
-      } else if (!hasHelm) {
-        updatedBoat.helm = sailor.name;
-      } else if (!hasCrew) {
-        updatedBoat.crew = sailor.name;
-      }
+    if (updatedBoat.capacity === 1) {
+      updatedBoat.helm = sailor.name;
+    } else if (!updatedBoat.helm && (sailor.role === "Helm" || sailor.role === "Either")) {
+      updatedBoat.helm = sailor.name;
+    } else if (!updatedBoat.crew && (sailor.role === "Crew" || sailor.role === "Either")) {
+      updatedBoat.crew = sailor.name;
+    } else if (!updatedBoat.helm) {
+      updatedBoat.helm = sailor.name;
+    } else if (!updatedBoat.crew) {
+      updatedBoat.crew = sailor.name;
+    }
 
-      updatedBoat.filled = [updatedBoat.helm, updatedBoat.crew].filter(Boolean).length;
-      updatedBoat.status =
-        updatedBoat.filled === updatedBoat.capacity && updatedBoat.instructor
-          ? "ready"
-          : updatedBoat.filled > 0
-          ? "warn"
-          : "idle";
+    updatedBoat.filled = [updatedBoat.helm, updatedBoat.crew].filter(Boolean).length;
+    updatedBoat.status =
+      updatedBoat.filled === updatedBoat.capacity && updatedBoat.instructor
+        ? "ready"
+        : updatedBoat.filled > 0
+        ? "warn"
+        : "idle";
 
-      if (!updatedBoat.instructor) {
-        updatedBoat.warning = "No instructor assigned";
-      } else if (updatedBoat.capacity > 1 && !updatedBoat.crew) {
-        updatedBoat.warning = "Crew unassigned";
-      } else if (!updatedBoat.helm) {
-        updatedBoat.warning = "Helm unassigned";
-      } else {
-        updatedBoat.warning = null;
-      }
+    if (!updatedBoat.instructor)         updatedBoat.warning = "No instructor assigned";
+    else if (updatedBoat.capacity > 1 && !updatedBoat.crew) updatedBoat.warning = "Crew unassigned";
+    else if (!updatedBoat.helm)          updatedBoat.warning = "Helm unassigned";
+    else                                 updatedBoat.warning = null;
 
-      return updatedBoat;
-    },
-    []
-  );
+    return updatedBoat;
+  }, []);
 
   const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
+    async (event: DragEndEvent) => {
       setActiveDragType(null);
       const activeId = String(event.active.id);
-      const overId = String(event.over?.id ?? "");
+      const overId   = String(event.over?.id ?? "");
       if (!overId) return;
 
-      const isBoatSortDrag = boats.some((boat) => boat.id === activeId) && boats.some((boat) => boat.id === overId);
-      if (isBoatSortDrag && activeId !== overId) {
-        const oldIndex = boats.findIndex((boat) => boat.id === activeId);
-        const newIndex = boats.findIndex((boat) => boat.id === overId);
+      // ── Boat reorder ──
+      const isBoatSort = boats.some((b) => b.id === activeId) && boats.some((b) => b.id === overId);
+      if (isBoatSort && activeId !== overId) {
+        const oldIndex = boats.findIndex((b) => b.id === activeId);
+        const newIndex = boats.findIndex((b) => b.id === overId);
         if (oldIndex !== -1 && newIndex !== -1) {
-          setBoats((currentBoats) => arrayMove(currentBoats, oldIndex, newIndex));
+          const reordered = arrayMove(boats, oldIndex, newIndex);
+          setBoats(reordered);
+          await saveBoatOrder(reordered).catch(() => {});
         }
         return;
       }
 
+      // ── Sailor → boat ──
       if (activeId.startsWith("sailor:") && overId.startsWith("boat-drop:")) {
-        const sailorId = activeId.split(":")[1];
+        const sailorId    = activeId.split(":")[1];
         const targetBoatId = overId.split(":")[1];
         const sailor = sailors.find((s) => s.id === sailorId);
         if (!sailor) return;
 
-        setBoats((currentBoats) =>
-          currentBoats.map((boat) =>
-            boat.id === targetBoatId ? assignSailorToBoat(boat, sailor) : boat
-          )
+        const updatedBoats = boats.map((b) =>
+          b.id === targetBoatId ? assignSailorToBoat(b, sailor) : b
         );
-        setSailors((currentSailors) => currentSailors.filter((s) => s.id !== sailorId));
+        setBoats(updatedBoats);
+        setSailors((cur) => cur.filter((s) => s.id !== sailorId));
+
+        const updatedBoat = updatedBoats.find((b) => b.id === targetBoatId)!;
+        await Promise.all([saveBoat(updatedBoat), removeSailorFromPool(sailorId)]).catch(() => {});
         return;
       }
 
+      // ── Boat → instructor group (drag onto another boat) ──
       if (boats.some((b) => b.id === activeId) && overId.startsWith("boat-drop:")) {
-        const targetBoatId = overId.split(":")[1];
-        const targetBoat = boats.find((boat) => boat.id === targetBoatId);
+        const targetBoat = boats.find((b) => b.id === overId.split(":")[1]);
         if (!targetBoat) return;
-
         const instructorName = targetBoat.instructor;
 
-        setBoats((currentBoats) =>
-          currentBoats.map((boat) =>
-            boat.id === activeId
-              ? { ...boat, instructor: instructorName }
-              : boat
-          )
+        const updatedBoats = boats.map((b) =>
+          b.id === activeId ? { ...b, instructor: instructorName } : b
         );
-
-        setInstructorGroups((currentGroups) => {
-          const nextGroups = Object.fromEntries(
-            Object.entries(currentGroups).map(([key, ids]) => [
-              key,
-              ids.filter((id) => id !== activeId),
-            ])
-          );
-
-          if (instructorName) {
-            nextGroups[instructorName] = Array.from(
-              new Set([...(nextGroups[instructorName] ?? []), activeId])
-            );
-          }
-
-          Object.keys(nextGroups).forEach((key) => {
-            if (nextGroups[key].length === 0) {
-              delete nextGroups[key];
-            }
-          });
-
-          return nextGroups;
-        });
-
+        setBoats(updatedBoats);
+        setInstructorGroups((cur) => rebuildGroup(cur, activeId, instructorName));
+        await saveBoat(updatedBoats.find((b) => b.id === activeId)!).catch(() => {});
         return;
       }
 
-      // instructor group drop: accept boat being dragged into instructor group
+      // ── Boat → instructor section drop zone ──
       if (boats.some((b) => b.id === activeId) && overId.startsWith("instructor:")) {
         const instructorName = overId.split(":")[1];
+        const resolved = instructorName === "unassigned" ? null : instructorName;
 
-        setBoats((currentBoats) =>
-          currentBoats.map((boat) =>
-            boat.id === activeId
-              ? { ...boat, instructor: instructorName === "unassigned" ? null : instructorName }
-              : boat
-          )
+        const updatedBoats = boats.map((b) =>
+          b.id === activeId ? { ...b, instructor: resolved } : b
         );
-
-        setInstructorGroups((currentGroups) => {
-          const nextGroups = Object.fromEntries(
-            Object.entries(currentGroups).map(([key, ids]) => [
-              key,
-              ids.filter((id) => id !== activeId),
-            ])
-          );
-
-          if (instructorName !== "unassigned") {
-            nextGroups[instructorName] = Array.from(
-              new Set([...(nextGroups[instructorName] ?? []), activeId])
-            );
-          }
-
-          Object.keys(nextGroups).forEach((key) => {
-            if (nextGroups[key].length === 0) {
-              delete nextGroups[key];
-            }
-          });
-
-          return nextGroups;
-        });
-
+        setBoats(updatedBoats);
+        setInstructorGroups((cur) => rebuildGroup(cur, activeId, resolved));
+        await saveBoat(updatedBoats.find((b) => b.id === activeId)!).catch(() => {});
         return;
       }
     },
@@ -213,159 +251,177 @@ export default function PlannerPage() {
   );
 
   const handleAssignByTap = useCallback(
-    (boatId: string) => {
+    async (boatId: string) => {
       if (!selectedSailorId) return;
       const sailor = sailors.find((s) => s.id === selectedSailorId);
       if (!sailor) return;
 
-      setBoats((currentBoats) =>
-        currentBoats.map((boat) => (boat.id === boatId ? assignSailorToBoat(boat, sailor) : boat))
+      const updatedBoats = boats.map((b) =>
+        b.id === boatId ? assignSailorToBoat(b, sailor) : b
       );
-      setSailors((currentSailors) => currentSailors.filter((s) => s.id !== selectedSailorId));
+      setBoats(updatedBoats);
+      setSailors((cur) => cur.filter((s) => s.id !== selectedSailorId));
       setSelectedSailorId(null);
       showToast(`${sailor.name} assigned`);
+
+      const updatedBoat = updatedBoats.find((b) => b.id === boatId)!;
+      await Promise.all([saveBoat(updatedBoat), removeSailorFromPool(selectedSailorId)]).catch(() => {});
     },
-    [selectedSailorId, sailors, assignSailorToBoat, showToast]
+    [selectedSailorId, sailors, boats, assignSailorToBoat, showToast]
   );
 
   const handleAssignBoatToInstructor = useCallback(
-    (instructorName: string) => {
+    async (instructorName: string) => {
       if (!selectedBoatId) return;
+      const resolved = instructorName === "unassigned" ? null : instructorName;
 
-      setBoats((currentBoats) =>
-        currentBoats.map((boat) =>
-          boat.id === selectedBoatId ? { ...boat, instructor: instructorName === "unassigned" ? null : instructorName } : boat
-        )
+      const updatedBoats = boats.map((b) =>
+        b.id === selectedBoatId ? { ...b, instructor: resolved } : b
       );
-
-      setInstructorGroups((currentGroups) => {
-        const nextGroups = Object.fromEntries(
-          Object.entries(currentGroups).map(([key, ids]) => [key, ids.filter((id) => id !== selectedBoatId)])
-        );
-
-        if (instructorName !== "unassigned") {
-          nextGroups[instructorName] = Array.from(new Set([...(nextGroups[instructorName] ?? []), selectedBoatId]));
-        }
-
-        Object.keys(nextGroups).forEach((key) => {
-          if (nextGroups[key].length === 0) {
-            delete nextGroups[key];
-          }
-        });
-
-        return nextGroups;
-      });
-
+      setBoats(updatedBoats);
+      setInstructorGroups((cur) => rebuildGroup(cur, selectedBoatId, resolved));
       setSelectedBoatId(null);
-      showToast(
-        instructorName === "unassigned" ? "Boat unassigned" : `Boat assigned to ${instructorName}`
-      );
+      showToast(resolved ? `Boat assigned to ${resolved}` : "Boat unassigned");
+
+      await saveBoat(updatedBoats.find((b) => b.id === selectedBoatId)!).catch(() => {});
     },
-    [selectedBoatId, showToast]
+    [selectedBoatId, boats, showToast]
   );
 
-
+  // ── Derived data ──────────────────────────────────────────
   const BOAT_TYPE_ORDER = ["Feva", "Pico", "Topper", "Optimist"] as const;
   const boatStats = useMemo(() => {
     const byType: Partial<Record<string, number>> = {};
-    for (const b of boats) {
-      byType[b.type] = (byType[b.type] ?? 0) + 1;
-    }
+    for (const b of boats) byType[b.type] = (byType[b.type] ?? 0) + 1;
     const byTypeOrdered = BOAT_TYPE_ORDER
       .filter((t) => byType[t] !== undefined)
       .map((t) => [t, byType[t]!] as [string, number]);
     return {
-      total: boats.length,
-      ready: boats.filter((b) => b.status === "ready").length,
-      review: boats.filter(
-        (b) => b.status === "warn" || b.status === "alert"
-      ).length,
+      total:  boats.length,
+      ready:  boats.filter((b) => b.status === "ready").length,
+      review: boats.filter((b) => b.status === "warn" || b.status === "alert").length,
       byType: Object.fromEntries(byTypeOrdered),
     };
   }, [boats]);
 
+  const sessionForSidebars = useMemo(() => ({
+    objective:       SESSION_CONFIG.objective,
+    date:            SESSION_CONFIG.date,
+    weather:         SESSION_CONFIG.weatherFallback,
+    boats,
+    sailors,
+    instructors,
+    recommendations: SESSION_CONFIG.recommendations,
+    notes,
+  }), [boats, sailors, instructors, notes]);
+
+  // ── Render ────────────────────────────────────────────────
+  if (dbStatus === "loading") return <LoadingScreen />;
+  if (dbStatus === "error")   return <ErrorScreen message={dbError} onRetry={loadAll} />;
+
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden overflow-y-auto bg-gray-50">
-      {/* Header */}
       <SessionHeader
-        session={SESSION_DATA}
+        session={sessionForSidebars}
         onGenerate={handleGenerate}
         onSave={handleSave}
         onOpenLeft={() => setLeftOpen(true)}
         onOpenRight={() => setRightOpen(true)}
       />
 
-      {/* Body */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(event) => {
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={(event) => {
           const activeId = String(event.active.id);
-          setActiveDragType(activeId.startsWith("sailor:") ? "sailor" : boats.some((b) => b.id === activeId) ? "boat" : null);
-        }} onDragEnd={handleDragEnd}>
+          setActiveDragType(
+            activeId.startsWith("sailor:") ? "sailor"
+            : boats.some((b) => b.id === activeId) ? "boat"
+            : null
+          );
+        }}
+        onDragEnd={handleDragEnd}
+      >
         <SortableContext items={boats.map((b) => b.id)} strategy={rectSortingStrategy}>
-        <div className="mx-auto flex w-full max-w-full px-4 flex-1 flex-col min-h-0 lg:flex-row lg:px-0 lg:max-w-screen-2xl">
-        {/* Left sidebar */}
-        <LeftSidebar
-          session={SESSION_DATA}
-          notes={notes}
-          onNotesChange={setNotes}
-          boatStats={boatStats}
-          hidden={!leftOpen}
-          onClose={() => setLeftOpen(false)}
-        />
+          <div className="mx-auto flex w-full max-w-full px-4 flex-1 flex-col min-h-0 lg:flex-row lg:px-0 lg:max-w-screen-2xl">
+            <LeftSidebar
+              session={sessionForSidebars}
+              notes={notes}
+              onNotesChange={setNotes}
+              boatStats={boatStats}
+              hidden={!leftOpen}
+              onClose={() => setLeftOpen(false)}
+            />
 
-        {/* Main content area */}
-        <div className="order-1 flex w-full flex-col lg:order-2 lg:flex-1 lg:min-h-0">
-          <PlanningBoard
-            boats={boats}
-            groupedBoats={selectedInstructors.map((instructor) => ({
-              instructor,
-              boats: boats.filter((boat) =>
-                (instructorGroups[instructor] ?? []).includes(boat.id)
-              ),
-            }))}
-            ungroupedBoats={boats.filter(
-              (boat) => !Object.values(instructorGroups).flat().includes(boat.id)
-            )}
-            selectedInstructors={selectedInstructors}
-            onAssignByTap={handleAssignByTap}
-            assignEnabled={Boolean(selectedSailorId)}
-            activeDragType={activeDragType}
-            onSelectBoat={(id) => setSelectedBoatId((cur) => (cur === id ? null : id))}
-            selectedBoatId={selectedBoatId}
-            onAssignBoatToInstructor={handleAssignBoatToInstructor}
-          />
-          <SailorPool
-            sailors={sailors}
-            isOpen={poolOpen}
-            onToggle={() => setPoolOpen((o) => !o)}
-            selectedSailorId={selectedSailorId}
-            onSelectSailor={(id) => setSelectedSailorId((cur) => (cur === id ? null : id))}
-          />
-          <InstructorPool
-            instructors={instructors}
-            isOpen={instructorPoolOpen}
-            onToggle={() => setInstructorPoolOpen((o) => !o)}
-            selectedInstructors={selectedInstructors}
-            onSelectInstructor={(name) =>
-              setSelectedInstructors((current) =>
-                current.includes(name) ? current.filter((item) => item !== name) : [...current, name]
-              )
-            }
-          />
-        </div>
+            <div className="order-1 flex w-full flex-col lg:order-2 lg:flex-1 lg:min-h-0">
+              <PlanningBoard
+                boats={boats}
+                groupedBoats={selectedInstructors.map((instructor) => ({
+                  instructor,
+                  boats: boats.filter((b) =>
+                    (instructorGroups[instructor] ?? []).includes(b.id)
+                  ),
+                }))}
+                ungroupedBoats={boats.filter(
+                  (b) => !Object.values(instructorGroups).flat().includes(b.id)
+                )}
+                selectedInstructors={selectedInstructors}
+                onAssignByTap={handleAssignByTap}
+                assignEnabled={Boolean(selectedSailorId)}
+                activeDragType={activeDragType}
+                onSelectBoat={(id) => setSelectedBoatId((cur) => (cur === id ? null : id))}
+                selectedBoatId={selectedBoatId}
+                onAssignBoatToInstructor={handleAssignBoatToInstructor}
+              />
+              <SailorPool
+                sailors={sailors}
+                isOpen={poolOpen}
+                onToggle={() => setPoolOpen((o) => !o)}
+                selectedSailorId={selectedSailorId}
+                onSelectSailor={(id) => setSelectedSailorId((cur) => (cur === id ? null : id))}
+              />
+              <InstructorPool
+                instructors={instructors}
+                isOpen={instructorPoolOpen}
+                onToggle={() => setInstructorPoolOpen((o) => !o)}
+                selectedInstructors={selectedInstructors}
+                onSelectInstructor={(name) =>
+                  setSelectedInstructors((cur) =>
+                    cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name]
+                  )
+                }
+              />
+            </div>
 
-        {/* Right sidebar */}
-        <RightSidebar
-          boats={boats}
-          session={SESSION_DATA}
-          hidden={!rightOpen}
-          onClose={() => setRightOpen(false)}
-        />
-      </div>
+            <RightSidebar
+              boats={boats}
+              session={sessionForSidebars}
+              hidden={!rightOpen}
+              onClose={() => setRightOpen(false)}
+            />
+          </div>
         </SortableContext>
       </DndContext>
 
-      {/* Toast */}
       <Toast visible={toast.visible} message={toast.message} />
     </div>
   );
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+
+/** Rebuild instructorGroups after a boat changes instructor */
+function rebuildGroup(
+  current: Record<string, string[]>,
+  boatId: string,
+  instructorName: string | null
+): Record<string, string[]> {
+  const next = Object.fromEntries(
+    Object.entries(current).map(([k, ids]) => [k, ids.filter((id) => id !== boatId)])
+  );
+  if (instructorName) {
+    next[instructorName] = Array.from(new Set([...(next[instructorName] ?? []), boatId]));
+  }
+  Object.keys(next).forEach((k) => { if (next[k].length === 0) delete next[k]; });
+  return next;
 }

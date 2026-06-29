@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   DndContext,
   closestCenter,
@@ -21,6 +22,7 @@ import { SESSION_CONFIG } from "@/data/session";
 import {
   loadBoats,
   loadSailors,
+  loadSailorsFromSession,
   loadInstructors,
   saveBoat,
   saveBoatOrder,
@@ -66,7 +68,9 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
 
 // ── Main page ──────────────────────────────────────────────────
 
-export default function PlannerPage() {
+function PlannerPageInner() {
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get("session");
   // ── DB state ──
   const [dbStatus, setDbStatus] = useState<"loading" | "ready" | "error">("loading");
   const [dbError, setDbError] = useState("");
@@ -99,7 +103,7 @@ export default function PlannerPage() {
     try {
       const [loadedBoats, loadedSailors, loadedInstructors] = await Promise.all([
         loadBoats(),
-        loadSailors(),
+        sessionId ? loadSailorsFromSession(sessionId) : loadSailors(),
         loadInstructors(),
       ]);
       setBoats(loadedBoats);
@@ -321,12 +325,25 @@ export default function PlannerPage() {
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden overflow-y-auto bg-gray-50">
+      {/* Session context banner — shown when opened from a session */}
+      {sessionId && (
+        <div className="bg-blue-600 px-4 py-2 flex items-center justify-between gap-3">
+          <p className="text-xs font-medium text-white">
+            📋 Planning from session sign-ups · {sailors.length} sailor{sailors.length !== 1 ? "s" : ""} loaded
+          </p>
+          <a href="/" className="text-xs text-blue-200 hover:text-white underline flex-shrink-0">
+            Clear session
+          </a>
+        </div>
+      )}
+
       <SessionHeader
         session={sessionForSidebars}
         onGenerate={handleGenerate}
         onSave={handleSave}
         onOpenLeft={() => setLeftOpen(true)}
         onOpenRight={() => setRightOpen(true)}
+        onOpenSessions={() => window.location.href = "/sessions"}
       />
 
       <DndContext
@@ -405,6 +422,14 @@ export default function PlannerPage() {
 
       <Toast visible={toast.visible} message={toast.message} />
     </div>
+  );
+}
+
+export default function PlannerPage() {
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <PlannerPageInner />
+    </Suspense>
   );
 }
 

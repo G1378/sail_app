@@ -1,4 +1,4 @@
-import { supabase, type DbBoat, type DbSailor } from "@/lib/supabase";
+import { supabase, assertEnvVars, type DbBoat, type DbSailor } from "@/lib/supabase";
 import type { Boat, Sailor } from "@/types";
 
 // ── Mappers ────────────────────────────────────────────────────
@@ -33,6 +33,7 @@ function dbSailorToSailor(row: DbSailor): Sailor {
 // ── Loaders ────────────────────────────────────────────────────
 
 export async function loadBoats(): Promise<Boat[]> {
+  assertEnvVars();
   const { data, error } = await supabase
     .from("boats")
     .select("*")
@@ -88,6 +89,42 @@ export async function saveBoatOrder(boats: Boat[]): Promise<void> {
     supabase.from("boats").update({ sort_order: i }).eq("id", b.id)
   );
   await Promise.all(updates);
+}
+
+/** Load sailors from session signups — used by the planner when opened with ?session=id */
+export async function loadSailorsFromSession(sessionId: string): Promise<Sailor[]> {
+  const { data, error } = await supabase
+    .from("session_signups")
+    .select(`
+      sailor_profile_id,
+      sailor_profiles (
+        id, name, stage, confidence, role, skills
+      )
+    `)
+    .eq("session_id", sessionId);
+
+  if (error) throw new Error(`loadSailorsFromSession: ${error.message}`);
+
+  type Row = {
+    sailor_profile_id: string;
+    sailor_profiles: { id: string; name: string; stage: string; confidence: string; role: string; skills: string[] } | { id: string; name: string; stage: string; confidence: string; role: string; skills: string[] }[] | null;
+  };
+
+  return (data as Row[] ?? [])
+    .flatMap((row) => {
+      const p = row.sailor_profiles;
+      if (!p) return [];
+      const profile = Array.isArray(p) ? p[0] : p;
+      if (!profile) return [];
+      return [{
+        id:         profile.id,
+        name:       profile.name,
+        stage:      parseInt(profile.stage) as 1 | 2 | 3 | 4,
+        confidence: profile.confidence as Sailor["confidence"],
+        role:       profile.role as Sailor["role"],
+        skills:     profile.skills ?? [],
+      }];
+    });
 }
 
 /** Remove a sailor from the pool (they've been assigned to a boat) */

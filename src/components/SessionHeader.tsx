@@ -11,6 +11,7 @@ interface SessionHeaderProps {
   onSave: () => void;
   onOpenLeft?: () => void;
   onOpenRight?: () => void;
+  onOpenSessions?: () => void;
 }
 
 const WEATHER_ICONS = {
@@ -50,6 +51,7 @@ export function SessionHeader({
   onSave,
   onOpenLeft,
   onOpenRight,
+  onOpenSessions,
 }: SessionHeaderProps) {
   const weatherState = useWeather(DEFAULT_LOCATION);
 
@@ -141,6 +143,14 @@ export function SessionHeader({
 
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+        <motion.button
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.97 }}
+          onClick={onOpenSessions}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50 sm:w-auto"
+        >
+          📋 Sessions
+        </motion.button>
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.97 }}

@@ -1,4 +1,4 @@
-import { supabase, assertEnvVars, type DbBoat, type DbSailor } from "@/lib/supabase";
+import { supabase, type DbBoat, type DbSailor } from "@/lib/supabase";
 import type { Boat, Sailor } from "@/types";
 
 // ── Mappers ────────────────────────────────────────────────────
@@ -33,7 +33,6 @@ function dbSailorToSailor(row: DbSailor): Sailor {
 // ── Loaders ────────────────────────────────────────────────────
 
 export async function loadBoats(): Promise<Boat[]> {
-  assertEnvVars();
   const { data, error } = await supabase
     .from("boats")
     .select("*")

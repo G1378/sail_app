@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/lib/useProfile";
 import {
   loadSession,
   loadSignups,
@@ -80,6 +81,12 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
 
+  const { profile, loading: profileLoading } = useProfile({
+    requireAuth: "/login",
+    requireRole: ["senior_instructor"],
+    redirectIfUnauthorised: "/",
+  });
+
   const refresh = useCallback(async () => {
     try {
       const [s, su] = await Promise.all([loadSession(id), loadSignups(id)]);
@@ -91,19 +98,18 @@ export default function SessionDetailPage() {
   }, [id]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) router.push("/login");
-    });
+    if (profileLoading || !profile) return;
     refresh().finally(() => setLoading(false));
-  }, [refresh, router]);
+  }, [refresh, profileLoading, profile]);
 
   // Auto-refresh signups every 15s while page is open
   useEffect(() => {
+    if (!profile) return;
     const t = setInterval(refresh, 15000);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, profile]);
 
-  if (loading) {
+  if (profileLoading || !profile || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <span className="text-3xl animate-bounce">⛵</span>

@@ -62,6 +62,29 @@ export async function loadInstructors(): Promise<string[]> {
   return (data as { name: string }[]).map((r) => r.name);
 }
 
+/** Load instructor names from instructor_signups — used by the planner when opened with ?session=id */
+export async function loadInstructorsFromSession(sessionId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("instructor_signups")
+    .select(`
+      sailor_profile_id,
+      sailor_profiles ( name )
+    `)
+    .eq("session_id", sessionId);
+
+  if (error) throw new Error(`loadInstructorsFromSession: ${error.message}`);
+
+  type Row = { sailor_profiles: { name: string } | { name: string }[] | null };
+
+  return (data as Row[] ?? [])
+    .flatMap((row) => {
+      const p = row.sailor_profiles;
+      if (!p) return [];
+      const profile = Array.isArray(p) ? p[0] : p;
+      return profile ? [profile.name] : [];
+    });
+}
+
 // ── Savers ─────────────────────────────────────────────────────
 
 /** Upsert a single boat (updates all mutable fields) */

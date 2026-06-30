@@ -24,11 +24,13 @@ import {
   loadSailors,
   loadSailorsFromSession,
   loadInstructors,
+  loadInstructorsFromSession,
   saveBoat,
   saveBoatOrder,
   removeSailorFromPool,
 } from "@/lib/db";
 import type { Boat, Sailor } from "@/types";
+import { useProfile } from "@/lib/useProfile";
 
 // ── Loading / error screens ────────────────────────────────────
 
@@ -71,6 +73,13 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
 function PlannerPageInner() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("session");
+
+  const { profile, loading: profileLoading } = useProfile({
+    requireAuth: "/login",
+    requireRole: ["senior_instructor"],
+    redirectIfUnauthorised: "/signup",
+  });
+
   // ── DB state ──
   const [dbStatus, setDbStatus] = useState<"loading" | "ready" | "error">("loading");
   const [dbError, setDbError] = useState("");
@@ -104,7 +113,7 @@ function PlannerPageInner() {
       const [loadedBoats, loadedSailors, loadedInstructors] = await Promise.all([
         loadBoats(),
         sessionId ? loadSailorsFromSession(sessionId) : loadSailors(),
-        loadInstructors(),
+        sessionId ? loadInstructorsFromSession(sessionId) : loadInstructors(),
       ]);
       setBoats(loadedBoats);
       setSailors(loadedSailors);
@@ -125,7 +134,10 @@ function PlannerPageInner() {
     }
   }, []);
 
-  useEffect(() => { loadAll(); }, [loadAll]);
+  useEffect(() => {
+    if (profileLoading || !profile) return;
+    loadAll();
+  }, [loadAll, profileLoading, profile]);
 
   // ── Toast helper ──────────────────────────────────────────
   const showToast = useCallback((message: string) => {
@@ -320,6 +332,7 @@ function PlannerPageInner() {
   }), [boats, sailors, instructors, notes]);
 
   // ── Render ────────────────────────────────────────────────
+  if (profileLoading || !profile) return <LoadingScreen />;
   if (dbStatus === "loading") return <LoadingScreen />;
   if (dbStatus === "error")   return <ErrorScreen message={dbError} onRetry={loadAll} />;
 

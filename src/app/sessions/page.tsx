@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useProfile } from "@/lib/useProfile";
 import {
   loadSessions,
   createSession,
@@ -274,10 +275,13 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
 // ── Main page ──────────────────────────────────────────────────
 
 export default function SessionsPage() {
-  const router = useRouter();
+  const { profile, loading: profileLoading } = useProfile({
+    requireAuth: "/login",
+    requireRole: ["senior_instructor"],
+    redirectIfUnauthorised: "/",
+  });
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState("");
 
   async function refresh() {
     const data = await loadSessions();
@@ -285,15 +289,20 @@ export default function SessionsPage() {
   }
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { router.push("/login"); return; }
-      setEmail(user.email ?? "");
-    });
+    if (profileLoading || !profile) return;
     loadSessions().then((data) => {
       setSessions(data);
       setLoading(false);
     });
-  }, [router]);
+  }, [profileLoading, profile]);
+
+  if (profileLoading || !profile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="text-3xl animate-bounce">⛵</span>
+      </div>
+    );
+  }
 
   const upcoming  = sessions.filter((s) => s.status !== "completed");
   const completed = sessions.filter((s) => s.status === "completed");
@@ -304,7 +313,7 @@ export default function SessionsPage() {
         <Link href="/" className="text-xl">⛵</Link>
         <span className="text-sm font-semibold text-gray-900">Session Manager</span>
         <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-gray-400 hidden sm:block">{email}</span>
+          <span className="text-xs text-gray-400 hidden sm:block">{profile.name}</span>
           <Link href="/" className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Planner</Link>
         </div>
       </header>

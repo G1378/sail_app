@@ -3,15 +3,18 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/lib/useProfile";
 import {
   loadSessions,
+  loadSignups,
   createSession,
   updateSessionStatus,
   deleteSession,
   getSignupState,
   type Session,
+  type SessionSignup,
   type SessionStatus,
 } from "@/lib/sessions";
 
@@ -175,7 +178,17 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
 
 function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () => void }) {
   const [confirming, setConfirming] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [signups, setSignups] = useState<SessionSignup[]>([]);
+  const [signupsLoading, setSignupsLoading] = useState(true);
   const signupState = getSignupState(session);
+
+  useEffect(() => {
+    loadSignups(session.id)
+      .then(setSignups)
+      .catch(() => {})
+      .finally(() => setSignupsLoading(false));
+  }, [session.id]);
 
   async function handleDelete() {
     await deleteSession(session.id);
@@ -186,6 +199,17 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
     await updateSessionStatus(session.id, status);
     onRefresh();
   }
+
+  function copyInviteLink() {
+    const url = `${window.location.origin}/signup/${session.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  }
+
+  // Most recent 5 sign-ups, newest first (loadSignups returns oldest-first)
+  const recentSignups = [...signups].reverse().slice(0, 5);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex flex-col gap-3">
@@ -218,25 +242,22 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <Link
-          href={`/sessions/${session.id}`}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          View sign-ups
-        </Link>
-
-        <Link
-          href={`/signup/${session.id}`}
-          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors"
-        >
-          Sailor sign-up page ↗
-        </Link>
-
-        <Link
           href={`/?session=${session.id}`}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
         >
           ⛵ Fleet Planner
         </Link>
+
+        <button
+          onClick={copyInviteLink}
+          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            copied
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+          }`}
+        >
+          {copied ? "✓ Copied!" : "🔗 Copy invite link"}
+        </button>
 
         {session.status === "draft" && (
           <button
@@ -273,6 +294,24 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
           <button onClick={() => setConfirming(true)} className="ml-auto text-xs text-gray-300 hover:text-red-400 transition-colors">
             Delete
           </button>
+        )}
+      </div>
+
+      {/* Recent sign-ups summary */}
+      <div className="flex items-center gap-3 rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5">
+        <div className="flex flex-shrink-0 items-center gap-1.5 text-gray-500">
+          <Users className="w-3.5 h-3.5" />
+          <span className="text-xs font-semibold">{signups.length}</span>
+        </div>
+        <div className="h-4 w-px flex-shrink-0 bg-gray-200" />
+        {signupsLoading ? (
+          <span className="text-xs text-gray-400">Loading…</span>
+        ) : recentSignups.length === 0 ? (
+          <span className="text-xs text-gray-400">No sign-ups yet</span>
+        ) : (
+          <p className="truncate text-xs text-gray-500">
+            {recentSignups.map((s) => s.sailor_profiles?.name ?? "Unknown").join(", ")}
+          </p>
         )}
       </div>
     </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/lib/useProfile";
+import { loadInstructorsFromSession } from "@/lib/db";
 import {
   loadSession,
   loadSignups,
@@ -78,6 +79,7 @@ export default function SessionDetailPage() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [signups, setSignups] = useState<SessionSignup[]>([]);
+  const [instructorNames, setInstructorNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
 
@@ -89,9 +91,14 @@ export default function SessionDetailPage() {
 
   const refresh = useCallback(async () => {
     try {
-      const [s, su] = await Promise.all([loadSession(id), loadSignups(id)]);
+      const [s, su, ins] = await Promise.all([
+        loadSession(id),
+        loadSignups(id),
+        loadInstructorsFromSession(id),
+      ]);
       setSession(s);
       setSignups(su);
+      setInstructorNames(ins);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load");
     }
@@ -203,14 +210,32 @@ export default function SessionDetailPage() {
         <ShareBox sessionId={id} />
 
         {/* Open in planner button */}
-        {signups.length > 0 && (
+        {(signups.length > 0 || instructorNames.length > 0) && (
           <Link
             href={`/?session=${id}`}
             className="flex items-center justify-center gap-2 w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
           >
-            ⛵ Open Fleet Planner with these {signups.length} sailors →
+            ⛵ Open Fleet Planner — {signups.length} sailor{signups.length !== 1 ? "s" : ""}, {instructorNames.length} instructor{instructorNames.length !== 1 ? "s" : ""} →
           </Link>
         )}
+
+        {/* Instructors signed up */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">
+            Instructors attending <span className="text-gray-400 font-normal">({instructorNames.length})</span>
+          </h2>
+          {instructorNames.length === 0 ? (
+            <p className="text-sm text-gray-400">No instructors have marked attendance yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {instructorNames.map((name) => (
+                <span key={name} className="rounded-full bg-blue-50 border border-blue-100 px-3 py-1 text-xs font-medium text-blue-700">
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Sign-ups list */}
         <div>

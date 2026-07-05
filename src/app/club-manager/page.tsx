@@ -10,6 +10,21 @@ import type { Boat, BoatType } from "@/types";
 
 const BOAT_TYPES: BoatType[] = ["Feva", "Pico", "Topper", "Optimist"];
 
+// Typical capacity per class — used when a boat class isn't one of the four known types
+const TYPE_DEFAULT_CAPACITY: Record<BoatType, number> = {
+  Feva: 2,
+  Pico: 2,
+  Topper: 1,
+  Optimist: 1,
+};
+
+// If the typed name matches a known class (e.g. "feva"), use its type + default capacity.
+// Otherwise fall back to a generic default so we still have a valid BoatType/capacity to save.
+function inferBoatType(name: string): BoatType {
+  const match = BOAT_TYPES.find((t) => t.toLowerCase() === name.trim().toLowerCase());
+  return match ?? "Pico";
+}
+
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "sailor",            label: "Sailor" },
   { value: "instructor",        label: "Instructor" },
@@ -25,7 +40,7 @@ function BoatsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({ name: "", type: "Pico" as BoatType, capacity: 2, quantity: 1 });
+  const [form, setForm] = useState({ name: "", quantity: 1 });
 
   async function refresh() {
     const data = await loadBoats();
@@ -42,13 +57,14 @@ function BoatsTab() {
     if (form.quantity < 1) { setError("Quantity must be at least 1."); return; }
     setSaving(true);
     try {
+      const type = inferBoatType(form.name);
       await createBoats({
         namePrefix: form.name.trim(),
-        type: form.type,
-        capacity: form.capacity,
+        type,
+        capacity: TYPE_DEFAULT_CAPACITY[type],
         quantity: form.quantity,
       });
-      setForm({ name: "", type: "Pico", capacity: 2, quantity: 1 });
+      setForm({ name: "", quantity: 1 });
       await refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to add boats");
@@ -69,30 +85,13 @@ function BoatsTab() {
         <p className="text-xs text-gray-400 mb-4">
           Adding several of the same class? Enter the class name once and how many you have — e.g. "Feva" × 6 creates Feva 1 through Feva 6.
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <input
             type="text"
             required
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Boat class, e.g. Feva"
-            className="col-span-2 sm:col-span-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          />
-          <select
-            value={form.type}
-            onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as BoatType }))}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          >
-            {BOAT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <input
-            type="number"
-            min={1}
-            max={6}
-            required
-            value={form.capacity}
-            onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value) }))}
-            placeholder="Capacity"
             className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
           <input

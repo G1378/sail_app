@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { validateInvite } from "@/lib/invites";
 import type { UserRole } from "@/lib/useProfile";
 import type { SailorRole, RyaStage, Confidence } from "@/types";
 
@@ -17,6 +18,13 @@ const STAGE_LABELS: Record<RyaStage, string> = {
   2: "Stage 2 — Basic skills",
   3: "Stage 3 — Developing sailor",
   4: "Stage 4 — Advanced",
+};
+
+const ROLE_LABELS: Record<UserRole, { emoji: string; title: string }> = {
+  sailor:             { emoji: "🌊", title: "Sailor" },
+  instructor:         { emoji: "🎓", title: "Instructor" },
+  senior_instructor:  { emoji: "⭐", title: "Senior Instructor" },
+  club_manager:       { emoji: "🛠️", title: "Club Manager" },
 };
 
 function Label({ children }: { children: React.ReactNode }) {
@@ -41,20 +49,43 @@ function OptionButton({ selected, onClick, children }: {
   );
 }
 
-type Step = "account" | "role" | "profile" | "done";
+type TokenState = "checking" | "invalid" | "valid";
+type Step = "account" | "profile" | "done";
 
-export default function RegisterPage() {
+function RegisterInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") ?? "";
+
+  const [tokenState, setTokenState] = useState<TokenState>("checking");
+  const [inviteRole, setInviteRole] = useState<UserRole | null>(null);
+  const [inviteeName, setInviteeName] = useState<string | null>(null);
+
   const [step, setStep]     = useState<Step>("account");
   const [error, setError]   = useState("");
   const [loading, setLoading] = useState(false);
 
   const [account, setAccount] = useState({ email: "", password: "", confirmPassword: "" });
-  const [userRole, setUserRole] = useState<UserRole>("sailor");
   const [profile, setProfile] = useState({
     name: "", stage: 1 as RyaStage, confidence: "Med" as Confidence,
     role: "Either" as SailorRole, skills: [] as string[],
   });
+
+  // Validate the invite token on load — no token, no registration.
+  useEffect(() => {
+    if (!token) { setTokenState("invalid"); return; }
+    validateInvite(token)
+      .then((result) => {
+        if (!result || !result.is_valid) { setTokenState("invalid"); return; }
+        setInviteRole(result.invite_role);
+        setInviteeName(result.invitee_name);
+        if (result.invitee_name) {
+          setProfile((p) => ({ ...p, name: result.invitee_name ?? "" }));
+        }
+        setTokenState("valid");
+      })
+      .catch(() => setTokenState("invalid"));
+  }, [token]);
 
   // Step 1 — create auth account
   async function handleAccountSubmit(e: React.FormEvent) {
@@ -66,37 +97,32 @@ export default function RegisterPage() {
     const { error: err } = await supabase.auth.signUp({ email: account.email, password: account.password });
     setLoading(false);
     if (err) { setError(err.message); return; }
-    setStep("role");
+
+    // Instructors / senior instructors / club managers skip the sailing-specific profile step
+    if (inviteRole === "sailor") { setStep("profile"); }
+    else { await handleSaveProfile(); }
   }
 
-  // Step 2 — role is just state, no async needed
-  function handleRoleContinue() {
-    if (userRole === "sailor") { setStep("profile"); }
-    else { handleSaveProfile(userRole); } // instructors skip sailing-specific fields
-  }
-
-  // Step 3 — save full profile
+  // Step 2 — save full profile (sailors only reach this as a separate step)
   async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!profile.name.trim()) { setError("Please enter your name."); return; }
-    await handleSaveProfile(userRole);
+    await handleSaveProfile();
   }
 
-  async function handleSaveProfile(role: UserRole) {
+  async function handleSaveProfile() {
+    if (!inviteRole) return;
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setError("Session expired — please sign in again."); setLoading(false); return; }
 
-    const isSailor = role === "sailor";
-    const { error: err } = await supabase.from("sailor_profiles").insert({
-      id:         user.id,
-      name:       profile.name.trim() || "Unknown",
-      stage:      isSailor ? String(profile.stage) : "1",
-      confidence: isSailor ? profile.confidence : "High",
-      role:       isSailor ? profile.role : "Either",
-      skills:     isSailor ? profile.skills : [],
-      user_role:  role,
+    const isSailor = inviteRole === "sailor";
+    const { error: err } = await supabase.rpc("complete_registration", {
+      invite_token: token,
+      p_name:       profile.name.trim() || "Unknown",
+      p_stage:      isSailor ? String(profile.stage) : "1",
+      p_confidence: isSailor ? profile.confidence : "High",
+      p_role:       isSailor ? profile.role : "Either",
+      p_skills:     isSailor ? profile.skills : [],
     });
 
     setLoading(false);
@@ -111,8 +137,44 @@ export default function RegisterPage() {
     }));
   }
 
-  const STEPS: Step[] = userRole === "sailor" ? ["account", "role", "profile"] : ["account", "role"];
+  const STEPS: Step[] = inviteRole === "sailor" ? ["account", "profile"] : ["account"];
   const stepIndex = STEPS.indexOf(step);
+
+  // ── Token still being checked ──
+  if (tokenState === "checking") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="text-3xl animate-bounce">⛵</span>
+      </div>
+    );
+  }
+
+  // ── No valid invite — registration is invite-only ──
+  if (tokenState === "invalid") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-2">
+          <span className="text-xl">⛵</span>
+          <span className="text-sm font-semibold text-gray-900">Sail Planner</span>
+        </header>
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="w-full max-w-md text-center py-8">
+            <div className="text-5xl mb-5">🔒</div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Invite required</h1>
+            <p className="text-sm text-gray-500 mb-8">
+              This registration link is missing, invalid, expired, or has already been used.
+              Ask your club manager for a new invite link.
+            </p>
+            <Link href="/login" className="inline-block w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
+              Go to sign in
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  const roleLabel = inviteRole ? ROLE_LABELS[inviteRole] : null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -128,13 +190,24 @@ export default function RegisterPage() {
       <main className="flex-1 flex items-start justify-center px-4 py-10">
         <div className="w-full max-w-md">
 
+          {/* Invite banner */}
+          {step !== "done" && roleLabel && (
+            <div className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+              <span className="text-xl">{roleLabel.emoji}</span>
+              <div>
+                <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide">You're invited as</p>
+                <p className="text-sm font-semibold text-blue-800">{roleLabel.title}</p>
+              </div>
+            </div>
+          )}
+
           {/* Progress */}
           {step !== "done" && (
             <div className="flex items-center gap-2 mb-8">
               {STEPS.map((s, i) => {
                 const isComplete = i < stepIndex;
                 const isActive   = step === s;
-                const label = s === "account" ? "Account" : s === "role" ? "Your role" : "Your profile";
+                const label = s === "account" ? "Account" : "Your profile";
                 return (
                   <div key={s} className="flex items-center gap-2">
                     <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-colors ${
@@ -179,8 +252,20 @@ export default function RegisterPage() {
                     placeholder="Same password again"
                     className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                 </div>
+
+                {/* Name field shown here for non-sailors (no separate profile step) */}
+                {inviteRole !== "sailor" && (
+                  <div>
+                    <Label>Your name</Label>
+                    <input type="text" required value={profile.name}
+                      onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="First name and last initial, e.g. Sarah M."
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
+                  </div>
+                )}
+
                 {error && <p className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</p>}
-                <button type="submit" disabled={loading}
+                <button type="submit" disabled={loading || (inviteRole !== "sailor" && !profile.name.trim())}
                   className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors">
                   {loading ? "Creating account…" : "Continue"}
                 </button>
@@ -188,53 +273,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ── Step 2: Role ── */}
-          {step === "role" && (
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">What's your role?</h1>
-              <p className="text-sm text-gray-500 mb-8">This determines what you can do in the app.</p>
-
-              <div className="flex flex-col gap-3 mb-6">
-                {([
-                  { value: "sailor",             emoji: "🌊", title: "Sailor",             desc: "Sign up for sessions, pick your boat and focus goal." },
-                  { value: "instructor",          emoji: "🎓", title: "Instructor",         desc: "Mark attendance for sessions. Appear in the instructor pool for planning." },
-                  { value: "senior_instructor",   emoji: "⭐", title: "Senior Instructor",  desc: "Everything above, plus create sessions and manage the fleet allocation board." },
-                ] as { value: UserRole; emoji: string; title: string; desc: string }[]).map(({ value, emoji, title, desc }) => (
-                  <button key={value} type="button" onClick={() => setUserRole(value)}
-                    className={`rounded-2xl border-2 p-4 text-left transition-all ${
-                      userRole === value ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"
-                    }`}>
-                    <div className="flex items-center gap-3 mb-1">
-                      <span className="text-xl">{emoji}</span>
-                      <span className="text-sm font-semibold text-gray-900">{title}</span>
-                      {userRole === value && <span className="ml-auto text-blue-500 text-sm">✓</span>}
-                    </div>
-                    <p className="text-xs text-gray-500 pl-9">{desc}</p>
-                  </button>
-                ))}
-              </div>
-
-              {/* Name field shown here for instructors (no profile step) */}
-              {userRole !== "sailor" && (
-                <div className="mb-6">
-                  <Label>Your name</Label>
-                  <input type="text" required value={profile.name}
-                    onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
-                    placeholder="First name and last initial, e.g. Sarah M."
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
-                </div>
-              )}
-
-              {error && <p className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700 mb-4">{error}</p>}
-
-              <button type="button" onClick={handleRoleContinue} disabled={loading || (userRole !== "sailor" && !profile.name.trim())}
-                className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors">
-                {loading ? "Saving…" : "Continue"}
-              </button>
-            </div>
-          )}
-
-          {/* ── Step 3: Profile (sailors only) ── */}
+          {/* ── Step 2: Profile (sailors only) ── */}
           {step === "profile" && (
             <div>
               <h1 className="text-2xl font-bold text-gray-900 mb-1">Tell us about yourself</h1>
@@ -327,5 +366,17 @@ export default function RegisterPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <span className="text-3xl animate-bounce">⛵</span>
+      </div>
+    }>
+      <RegisterInner />
+    </Suspense>
   );
 }

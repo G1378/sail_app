@@ -318,16 +318,52 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
   );
 }
 
+// ── Read-only card (sailors / instructors / club managers) ──────
+
+function ReadOnlySessionCard({ session }: { session: Session }) {
+  const [copied, setCopied] = useState(false);
+
+  function copyInviteLink() {
+    const url = `${window.location.origin}/signup/${session.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-center justify-between gap-3">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900">{session.title}</h3>
+        <p className="text-xs text-gray-400 mt-0.5">
+          {new Date(session.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+        </p>
+      </div>
+      <button
+        onClick={copyInviteLink}
+        className={`flex-shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+          copied
+            ? "border-green-200 bg-green-50 text-green-700"
+            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+        }`}
+      >
+        {copied ? "✓ Copied!" : "🔗 Copy invite link"}
+      </button>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────
 
 export default function SessionsPage() {
   const { profile, loading: profileLoading } = useProfile({
     requireAuth: "/login",
-    requireRole: ["senior_instructor"],
+    requireRole: ["senior_instructor", "instructor", "sailor", "club_manager"],
     redirectIfUnauthorised: "/",
   });
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const isSeniorInstructor = profile?.user_role === "senior_instructor";
 
   async function refresh() {
     const data = await loadSessions();
@@ -352,6 +388,8 @@ export default function SessionsPage() {
 
   const upcoming  = sessions.filter((s) => s.status !== "completed");
   const completed = sessions.filter((s) => s.status === "completed");
+  // Non-senior-instructors only need to see open sessions — enough to grab a sign-up link
+  const visibleUpcoming = isSeniorInstructor ? upcoming : upcoming.filter((s) => s.status === "open");
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -368,9 +406,11 @@ export default function SessionsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Sessions</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Create and manage sailor sign-up sessions.</p>
+            <p className="text-sm text-gray-400 mt-0.5">
+              {isSeniorInstructor ? "Create and manage sailor sign-up sessions." : "Grab the sign-up link for an open session."}
+            </p>
           </div>
-          <CreateForm onCreated={refresh} />
+          {isSeniorInstructor && <CreateForm onCreated={refresh} />}
         </div>
 
         {loading ? (
@@ -378,7 +418,7 @@ export default function SessionsPage() {
             <span className="text-3xl animate-bounce mr-3">⛵</span>
             <span className="text-sm">Loading…</span>
           </div>
-        ) : (
+        ) : isSeniorInstructor ? (
           <div className="flex flex-col gap-8">
             {upcoming.length > 0 ? (
               <div className="flex flex-col gap-3">
@@ -400,6 +440,16 @@ export default function SessionsPage() {
                     <SessionCard key={s.id} session={s} onRefresh={refresh} />
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {visibleUpcoming.length > 0 ? (
+              visibleUpcoming.map((s) => <ReadOnlySessionCard key={s.id} session={s} />)
+            ) : (
+              <div className="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400">
+                No open sessions right now.
               </div>
             )}
           </div>

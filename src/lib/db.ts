@@ -1,5 +1,5 @@
 import { supabase, type DbBoat, type DbSailor } from "@/lib/supabase";
-import type { Boat, Sailor } from "@/types";
+import type { Boat, Sailor, BoatType } from "@/types";
 
 // ── Mappers ────────────────────────────────────────────────────
 
@@ -111,6 +111,36 @@ export async function saveBoatOrder(boats: Boat[]): Promise<void> {
     supabase.from("boats").update({ sort_order: i }).eq("id", b.id)
   );
   await Promise.all(updates);
+}
+
+/** Add a new boat to the club fleet — club manager only (enforced by RLS) */
+export async function createBoat(input: { name: string; type: BoatType; capacity: number }): Promise<Boat> {
+  const { data, error } = await supabase
+    .from("boats")
+    .insert({
+      name:       input.name,
+      type:       input.type,
+      capacity:   input.capacity,
+      instructor: null,
+      helm:       null,
+      crew:       null,
+      goal:       "",
+      filled:     0,
+      status:     "idle",
+      warning:    null,
+      sort_order: 9999,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`createBoat: ${error.message}`);
+  return dbBoatToBoat(data as DbBoat);
+}
+
+/** Remove a boat from the club fleet — club manager only (enforced by RLS) */
+export async function deleteBoat(boatId: string): Promise<void> {
+  const { error } = await supabase.from("boats").delete().eq("id", boatId);
+  if (error) throw new Error(`deleteBoat: ${error.message}`);
 }
 
 /** Load sailors from session signups — used by the planner when opened with ?session=id */

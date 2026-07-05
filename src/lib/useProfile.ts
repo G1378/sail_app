@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-export type UserRole = "sailor" | "instructor" | "senior_instructor";
+export type UserRole = "sailor" | "instructor" | "senior_instructor" | "club_manager";
 
 export interface UserProfile {
   id: string;

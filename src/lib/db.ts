@@ -137,6 +137,35 @@ export async function createBoat(input: { name: string; type: BoatType; capacity
   return dbBoatToBoat(data as DbBoat);
 }
 
+/**
+ * Add several boats of the same class at once — e.g. "Feva" x 6 creates
+ * "Feva 1".."Feva 6". Club manager only (enforced by RLS).
+ */
+export async function createBoats(input: {
+  namePrefix: string;
+  type: BoatType;
+  capacity: number;
+  quantity: number;
+}): Promise<Boat[]> {
+  const rows = Array.from({ length: input.quantity }, (_, i) => ({
+    name:       input.quantity > 1 ? `${input.namePrefix} ${i + 1}` : input.namePrefix,
+    type:       input.type,
+    capacity:   input.capacity,
+    instructor: null,
+    helm:       null,
+    crew:       null,
+    goal:       "",
+    filled:     0,
+    status:     "idle",
+    warning:    null,
+    sort_order: 9999,
+  }));
+
+  const { data, error } = await supabase.from("boats").insert(rows).select();
+  if (error) throw new Error(`createBoats: ${error.message}`);
+  return (data as DbBoat[]).map(dbBoatToBoat);
+}
+
 /** Remove a boat from the club fleet — club manager only (enforced by RLS) */
 export async function deleteBoat(boatId: string): Promise<void> {
   const { error } = await supabase.from("boats").delete().eq("id", boatId);

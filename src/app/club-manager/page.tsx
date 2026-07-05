@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useProfile } from "@/lib/useProfile";
 import type { UserRole } from "@/lib/useProfile";
-import { loadBoats, createBoat, deleteBoat } from "@/lib/db";
+import { loadBoats, createBoats, deleteBoat } from "@/lib/db";
 import { loadInvites, createInvite, revokeInvite, type ClubInvite } from "@/lib/invites";
 import type { Boat, BoatType } from "@/types";
 
@@ -25,7 +25,7 @@ function BoatsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({ name: "", type: "Pico" as BoatType, capacity: 2 });
+  const [form, setForm] = useState({ name: "", type: "Pico" as BoatType, capacity: 2, quantity: 1 });
 
   async function refresh() {
     const data = await loadBoats();
@@ -38,14 +38,20 @@ function BoatsTab() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!form.name.trim()) { setError("Give the boat a name."); return; }
+    if (!form.name.trim()) { setError("Give the boat class a name, e.g. \"Feva\"."); return; }
+    if (form.quantity < 1) { setError("Quantity must be at least 1."); return; }
     setSaving(true);
     try {
-      await createBoat({ name: form.name.trim(), type: form.type, capacity: form.capacity });
-      setForm({ name: "", type: "Pico", capacity: 2 });
+      await createBoats({
+        namePrefix: form.name.trim(),
+        type: form.type,
+        capacity: form.capacity,
+        quantity: form.quantity,
+      });
+      setForm({ name: "", type: "Pico", capacity: 2, quantity: 1 });
       await refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to add boat");
+      setError(err instanceof Error ? err.message : "Failed to add boats");
     } finally {
       setSaving(false);
     }
@@ -59,15 +65,18 @@ function BoatsTab() {
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={handleAdd} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Add a boat to the fleet</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Add boats to the fleet</h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Adding several of the same class? Enter the class name once and how many you have — e.g. "Feva" × 6 creates Feva 1 through Feva 6.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <input
             type="text"
             required
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Boat name, e.g. Feva 3"
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+            placeholder="Boat class, e.g. Feva"
+            className="col-span-2 sm:col-span-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
           <select
             value={form.type}
@@ -86,11 +95,21 @@ function BoatsTab() {
             placeholder="Capacity"
             className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
+          <input
+            type="number"
+            min={1}
+            max={50}
+            required
+            value={form.quantity}
+            onChange={(e) => setForm((f) => ({ ...f, quantity: Number(e.target.value) }))}
+            placeholder="How many"
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
         </div>
         {error && <p className="mt-3 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-xs text-red-700">{error}</p>}
         <button type="submit" disabled={saving}
           className="mt-3 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors">
-          {saving ? "Adding…" : "+ Add boat"}
+          {saving ? "Adding…" : form.quantity > 1 ? `+ Add ${form.quantity} boats` : "+ Add boat"}
         </button>
       </form>
 

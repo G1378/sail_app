@@ -10,16 +10,8 @@ import type { Boat, BoatType } from "@/types";
 
 const BOAT_TYPES: BoatType[] = ["Feva", "Pico", "Topper", "Optimist"];
 
-// Typical capacity per class — used when a boat class isn't one of the four known types
-const TYPE_DEFAULT_CAPACITY: Record<BoatType, number> = {
-  Feva: 2,
-  Pico: 2,
-  Topper: 1,
-  Optimist: 1,
-};
-
-// If the typed name matches a known class (e.g. "feva"), use its type + default capacity.
-// Otherwise fall back to a generic default so we still have a valid BoatType/capacity to save.
+// If the typed name matches a known class (e.g. "feva"), use its type.
+// Otherwise fall back to a generic type so we still have a valid BoatType to save.
 function inferBoatType(name: string): BoatType {
   const match = BOAT_TYPES.find((t) => t.toLowerCase() === name.trim().toLowerCase());
   return match ?? "Pico";
@@ -40,7 +32,7 @@ function BoatsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({ name: "", quantity: 1 });
+  const [form, setForm] = useState({ name: "", capacity: 2, quantity: 1 });
 
   async function refresh() {
     const data = await loadBoats();
@@ -55,16 +47,17 @@ function BoatsTab() {
     setError("");
     if (!form.name.trim()) { setError("Give the boat class a name, e.g. \"Feva\"."); return; }
     if (form.quantity < 1) { setError("Quantity must be at least 1."); return; }
+    if (form.capacity < 1) { setError("Capacity must be at least 1."); return; }
     setSaving(true);
     try {
       const type = inferBoatType(form.name);
       await createBoats({
         namePrefix: form.name.trim(),
         type,
-        capacity: TYPE_DEFAULT_CAPACITY[type],
+        capacity: form.capacity,
         quantity: form.quantity,
       });
-      setForm({ name: "", quantity: 1 });
+      setForm({ name: "", capacity: 2, quantity: 1 });
       await refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to add boats");
@@ -83,15 +76,25 @@ function BoatsTab() {
       <form onSubmit={handleAdd} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-900 mb-1">Add boats to the fleet</h2>
         <p className="text-xs text-gray-400 mb-4">
-          Adding several of the same class? Enter the class name once and how many you have — e.g. "Feva" × 6 creates Feva 1 through Feva 6.
+          Adding several of the same class? Enter the class name once, how many people fit on each, and how many you have — e.g. "Feva" × 6 creates Feva 1 through Feva 6.
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <input
             type="text"
             required
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             placeholder="Boat class, e.g. Feva"
+            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+          <input
+            type="number"
+            min={1}
+            max={20}
+            required
+            value={form.capacity}
+            onChange={(e) => setForm((f) => ({ ...f, capacity: Number(e.target.value) }))}
+            placeholder="Max people"
             className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
           />
           <input
@@ -131,7 +134,7 @@ function BoatsTab() {
               <div key={boat.id} className="flex items-center justify-between gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm">
                 <div>
                   <p className="text-sm font-medium text-gray-900">{boat.name}</p>
-                  <p className="text-xs text-gray-400">{boat.type} · capacity {boat.capacity}</p>
+                  <p className="text-xs text-gray-400">capacity {boat.capacity}</p>
                 </div>
                 <button
                   onClick={() => handleDelete(boat.id)}

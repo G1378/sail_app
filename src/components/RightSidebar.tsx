@@ -107,7 +107,7 @@ export function RightSidebar({ boats, session, hidden, onClose }: RightSidebarPr
   const idle = boats.filter((b) => b.status === "idle").length;
 
   const totalSailors = session.sailors.length;
-  const assigned = boats.reduce((acc, b) => acc + b.filled, 0);
+  const assigned = boats.reduce((acc, b) => acc + b.assignedSailors.filter(Boolean).length, 0);
   const unassigned = totalSailors - assigned;
 
   const weatherState = useWeather(DEFAULT_LOCATION);

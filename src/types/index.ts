@@ -7,16 +7,26 @@ export type RecType = "ok" | "warn" | "info";
 
 export interface Boat {
   id: string;
+  /** Underlying fleet catalog boat id. Only set for session-mode boards
+   *  (where `id` is the board-instance id, distinct from the physical boat). */
+  boatId?: string;
   name: string;
   type: BoatType;
   instructor: string | null;
-  helm: string | null;
-  crew: string | null;
+  /** One entry per seat, length === capacity. null = empty seat. */
+  assignedSailors: (string | null)[];
   goal: string;
   capacity: number;
-  filled: number;
   status: BoatStatus;
   warning: string | null;
+}
+
+/** A boat in the club's fleet catalog, not yet necessarily on any board */
+export interface FleetBoat {
+  id: string;
+  name: string;
+  type: BoatType;
+  capacity: number;
 }
 
 export interface Sailor {

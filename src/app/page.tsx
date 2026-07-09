@@ -17,19 +17,26 @@ import { PlanningBoard }  from "@/components/PlanningBoard";
 import { RightSidebar }   from "@/components/RightSidebar";
 import { SailorPool }     from "@/components/SailorPool";
 import { InstructorPool } from "@/components/InstructorPool";
+import { FleetPool }      from "@/components/FleetPool";
 import { Toast }          from "@/components/ui/Toast";
 import { SESSION_CONFIG } from "@/data/session";
 import {
   loadBoats,
+  loadFleetBoats,
+  loadSessionBoats,
+  addBoatToSession,
+  removeBoatFromSession,
   loadSailors,
   loadSailorsFromSession,
   loadInstructors,
   loadInstructorsFromSession,
   saveBoat,
+  saveSessionBoat,
   saveBoatOrder,
+  saveSessionBoatOrder,
   removeSailorFromPool,
 } from "@/lib/db";
-import type { Boat, Sailor } from "@/types";
+import type { Boat, Sailor, FleetBoat } from "@/types";
 import { useProfile } from "@/lib/useProfile";
 
 // ── Loading / error screens ────────────────────────────────────
@@ -86,6 +93,7 @@ function PlannerPageInner() {
 
   // ── App state ──
   const [boats, setBoats]           = useState<Boat[]>([]);
+  const [fleetBoats, setFleetBoats] = useState<FleetBoat[]>([]);
   const [sailors, setSailors]       = useState<Sailor[]>([]);
   const [instructors, setInstructors] = useState<string[]>([]);
   const [notes, setNotes]           = useState(SESSION_CONFIG.notes);
@@ -94,6 +102,8 @@ function PlannerPageInner() {
   const [leftOpen, setLeftOpen]               = useState(false);
   const [rightOpen, setRightOpen]             = useState(false);
   const [instructorPoolOpen, setInstructorPoolOpen] = useState(true);
+  const [fleetPoolOpen, setFleetPoolOpen]     = useState(true);
+  const [addingBoatId, setAddingBoatId]       = useState<string | null>(null);
 
   const [selectedSailorId, setSelectedSailorId]     = useState<string | null>(null);
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
@@ -106,16 +116,29 @@ function PlannerPageInner() {
     message: "",
   });
 
+  // Persist a boat's mutable state to the right table depending on whether
+  // this is a session-scoped board or the legacy global board.
+  const persistBoat = useCallback(
+    (boat: Boat) => (sessionId ? saveSessionBoat(boat) : saveBoat(boat)),
+    [sessionId]
+  );
+  const persistBoatOrder = useCallback(
+    (ordered: Boat[]) => (sessionId ? saveSessionBoatOrder(ordered) : saveBoatOrder(ordered)),
+    [sessionId]
+  );
+
   // ── Load from Supabase ─────────────────────────────────────
   const loadAll = useCallback(async () => {
     setDbStatus("loading");
     try {
-      const [loadedBoats, loadedSailors, loadedInstructors] = await Promise.all([
-        loadBoats(),
+      const [loadedBoats, loadedFleetBoats, loadedSailors, loadedInstructors] = await Promise.all([
+        sessionId ? loadSessionBoats(sessionId) : loadBoats(),
+        loadFleetBoats(),
         sessionId ? loadSailorsFromSession(sessionId) : loadSailors(),
         sessionId ? loadInstructorsFromSession(sessionId) : loadInstructors(),
       ]);
       setBoats(loadedBoats);
+      setFleetBoats(loadedFleetBoats);
       setSailors(loadedSailors);
       setInstructors(loadedInstructors);
 
@@ -132,7 +155,7 @@ function PlannerPageInner() {
       setDbError(err instanceof Error ? err.message : String(err));
       setDbStatus("error");
     }
-  }, []);
+  }, [sessionId]);
 
   useEffect(() => {
     if (profileLoading || !profile) return;
@@ -152,46 +175,55 @@ function PlannerPageInner() {
 
   const handleSave = useCallback(async () => {
     try {
-      await Promise.all(boats.map(saveBoat));
+      await Promise.all(boats.map(persistBoat));
       showToast("Session saved ✓");
     } catch {
       showToast("Save failed — check connection");
     }
-  }, [boats, showToast]);
+  }, [boats, persistBoat, showToast]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
   const assignSailorToBoat = useCallback((boat: Boat, sailor: Sailor): Boat => {
-    if (boat.filled >= boat.capacity) return boat;
+    const filled = boat.assignedSailors.filter(Boolean).length;
+    if (filled >= boat.capacity) return boat;
 
-    const updatedBoat = { ...boat };
+    const seats = [...boat.assignedSailors];
 
-    if (updatedBoat.capacity === 1) {
-      updatedBoat.helm = sailor.name;
-    } else if (!updatedBoat.helm && (sailor.role === "Helm" || sailor.role === "Either")) {
-      updatedBoat.helm = sailor.name;
-    } else if (!updatedBoat.crew && (sailor.role === "Crew" || sailor.role === "Either")) {
-      updatedBoat.crew = sailor.name;
-    } else if (!updatedBoat.helm) {
-      updatedBoat.helm = sailor.name;
-    } else if (!updatedBoat.crew) {
-      updatedBoat.crew = sailor.name;
+    if (seats.length === 2) {
+      // Preserve helm/crew role preference for 2-seat boats
+      if (!seats[0] && (sailor.role === "Helm" || sailor.role === "Either")) {
+        seats[0] = sailor.name;
+      } else if (!seats[1] && (sailor.role === "Crew" || sailor.role === "Either")) {
+        seats[1] = sailor.name;
+      } else if (!seats[0]) {
+        seats[0] = sailor.name;
+      } else if (!seats[1]) {
+        seats[1] = sailor.name;
+      }
+    } else {
+      // Any other capacity — fill the first empty seat
+      const emptyIndex = seats.findIndex((s) => !s);
+      if (emptyIndex !== -1) seats[emptyIndex] = sailor.name;
     }
 
-    updatedBoat.filled = [updatedBoat.helm, updatedBoat.crew].filter(Boolean).length;
-    updatedBoat.status =
-      updatedBoat.filled === updatedBoat.capacity && updatedBoat.instructor
-        ? "ready"
-        : updatedBoat.filled > 0
-        ? "warn"
-        : "idle";
+    const newFilled = seats.filter(Boolean).length;
+    const updatedBoat: Boat = {
+      ...boat,
+      assignedSailors: seats,
+      status:
+        newFilled === boat.capacity && boat.instructor
+          ? "ready"
+          : newFilled > 0
+          ? "warn"
+          : "idle",
+    };
 
-    if (!updatedBoat.instructor)         updatedBoat.warning = "No instructor assigned";
-    else if (updatedBoat.capacity > 1 && !updatedBoat.crew) updatedBoat.warning = "Crew unassigned";
-    else if (!updatedBoat.helm)          updatedBoat.warning = "Helm unassigned";
-    else                                 updatedBoat.warning = null;
+    if (!updatedBoat.instructor)          updatedBoat.warning = "No instructor assigned";
+    else if (newFilled < boat.capacity)   updatedBoat.warning = `${boat.capacity - newFilled} seat${boat.capacity - newFilled !== 1 ? "s" : ""} unassigned`;
+    else                                  updatedBoat.warning = null;
 
     return updatedBoat;
   }, []);
@@ -211,7 +243,7 @@ function PlannerPageInner() {
         if (oldIndex !== -1 && newIndex !== -1) {
           const reordered = arrayMove(boats, oldIndex, newIndex);
           setBoats(reordered);
-          await saveBoatOrder(reordered).catch(() => {});
+          await persistBoatOrder(reordered).catch(() => {});
         }
         return;
       }
@@ -230,7 +262,7 @@ function PlannerPageInner() {
         setSailors((cur) => cur.filter((s) => s.id !== sailorId));
 
         const updatedBoat = updatedBoats.find((b) => b.id === targetBoatId)!;
-        await Promise.all([saveBoat(updatedBoat), removeSailorFromPool(sailorId)]).catch(() => {});
+        await Promise.all([persistBoat(updatedBoat), removeSailorFromPool(sailorId)]).catch(() => {});
         return;
       }
 
@@ -245,7 +277,7 @@ function PlannerPageInner() {
         );
         setBoats(updatedBoats);
         setInstructorGroups((cur) => rebuildGroup(cur, activeId, instructorName));
-        await saveBoat(updatedBoats.find((b) => b.id === activeId)!).catch(() => {});
+        await persistBoat(updatedBoats.find((b) => b.id === activeId)!).catch(() => {});
         return;
       }
 
@@ -259,11 +291,11 @@ function PlannerPageInner() {
         );
         setBoats(updatedBoats);
         setInstructorGroups((cur) => rebuildGroup(cur, activeId, resolved));
-        await saveBoat(updatedBoats.find((b) => b.id === activeId)!).catch(() => {});
+        await persistBoat(updatedBoats.find((b) => b.id === activeId)!).catch(() => {});
         return;
       }
     },
-    [boats, sailors, assignSailorToBoat]
+    [boats, sailors, assignSailorToBoat, persistBoat, persistBoatOrder]
   );
 
   const handleAssignByTap = useCallback(
@@ -281,9 +313,9 @@ function PlannerPageInner() {
       showToast(`${sailor.name} assigned`);
 
       const updatedBoat = updatedBoats.find((b) => b.id === boatId)!;
-      await Promise.all([saveBoat(updatedBoat), removeSailorFromPool(selectedSailorId)]).catch(() => {});
+      await Promise.all([persistBoat(updatedBoat), removeSailorFromPool(selectedSailorId)]).catch(() => {});
     },
-    [selectedSailorId, sailors, boats, assignSailorToBoat, showToast]
+    [selectedSailorId, sailors, boats, assignSailorToBoat, showToast, persistBoat]
   );
 
   const handleAssignBoatToInstructor = useCallback(
@@ -299,9 +331,46 @@ function PlannerPageInner() {
       setSelectedBoatId(null);
       showToast(resolved ? `Boat assigned to ${resolved}` : "Boat unassigned");
 
-      await saveBoat(updatedBoats.find((b) => b.id === selectedBoatId)!).catch(() => {});
+      await persistBoat(updatedBoats.find((b) => b.id === selectedBoatId)!).catch(() => {});
     },
-    [selectedBoatId, boats, showToast]
+    [selectedBoatId, boats, showToast, persistBoat]
+  );
+
+  const handleAddBoatToSession = useCallback(
+    async (fleetBoatId: string) => {
+      if (!sessionId) return;
+      const fleetBoat = fleetBoats.find((b) => b.id === fleetBoatId);
+      if (!fleetBoat) return;
+      setAddingBoatId(fleetBoatId);
+      try {
+        const newBoat = await addBoatToSession(sessionId, fleetBoatId, fleetBoat.capacity);
+        setBoats((cur) => [...cur, newBoat]);
+        showToast(`${fleetBoat.name} added to the board`);
+      } catch {
+        showToast("Failed to add boat — check connection");
+      } finally {
+        setAddingBoatId(null);
+      }
+    },
+    [sessionId, fleetBoats, showToast]
+  );
+
+  const handleRemoveBoatFromBoard = useCallback(
+    async (boatId: string) => {
+      if (!sessionId) return; // legacy no-session board has no fleet pool to return boats to
+      const boat = boats.find((b) => b.id === boatId);
+      if (!boat) return;
+      setBoats((cur) => cur.filter((b) => b.id !== boatId));
+      setInstructorGroups((cur) => rebuildGroup(cur, boatId, null));
+      if (selectedBoatId === boatId) setSelectedBoatId(null);
+      try {
+        await removeBoatFromSession(boatId);
+        showToast(`${boat.name} returned to the fleet pool`);
+      } catch {
+        showToast("Failed to remove boat — check connection");
+      }
+    },
+    [boats, sessionId, selectedBoatId, showToast]
   );
 
   // ── Derived data ──────────────────────────────────────────
@@ -402,6 +471,7 @@ function PlannerPageInner() {
                 onSelectBoat={(id) => setSelectedBoatId((cur) => (cur === id ? null : id))}
                 selectedBoatId={selectedBoatId}
                 onAssignBoatToInstructor={handleAssignBoatToInstructor}
+                onRemoveFromBoard={sessionId ? handleRemoveBoatFromBoard : undefined}
               />
               <SailorPool
                 sailors={sailors}
@@ -421,6 +491,16 @@ function PlannerPageInner() {
                   )
                 }
               />
+              {sessionId && (
+                <FleetPool
+                  fleetBoats={fleetBoats}
+                  boardedBoatIds={new Set(boats.map((b) => b.boatId).filter((id): id is string => Boolean(id)))}
+                  isOpen={fleetPoolOpen}
+                  onToggle={() => setFleetPoolOpen((o) => !o)}
+                  onAddBoat={handleAddBoatToSession}
+                  addingBoatId={addingBoatId}
+                />
+              )}
             </div>
 
             <RightSidebar

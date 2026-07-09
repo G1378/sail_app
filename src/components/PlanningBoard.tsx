@@ -21,6 +21,7 @@ interface PlanningBoardProps {
   onSelectBoat?: (boatId: string) => void;
   selectedBoatId?: string | null;
   onAssignBoatToInstructor?: (instructor: string) => void;
+  onRemoveFromBoard?: (boatId: string) => void;
 }
 
 function InstructorSection({
@@ -31,6 +32,7 @@ function InstructorSection({
   selectedBoatId,
   onSelectBoat,
   boatSelectionActive,
+  onRemoveFromBoard,
 }: {
   instructor: string;
   boats: Boat[];
@@ -39,6 +41,7 @@ function InstructorSection({
   selectedBoatId?: string | null;
   onSelectBoat?: (id: string) => void;
   boatSelectionActive?: boolean;
+  onRemoveFromBoard?: (boatId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `instructor:${instructor}`,
@@ -91,6 +94,7 @@ function InstructorSection({
             draggable
             onSelectBoat={onSelectBoat}
             selectedBoatId={selectedBoatId}
+            onRemoveFromBoard={onRemoveFromBoard}
           />
         ))}
       </div>
@@ -107,6 +111,7 @@ function UnassignedSection({
   onSelectBoat,
   selectedBoatId,
   boatSelectionActive,
+  onRemoveFromBoard,
 }: {
   boats: Boat[];
   onAssignByTap?: (boatId: string) => void;
@@ -116,6 +121,7 @@ function UnassignedSection({
   onSelectBoat?: (id: string) => void;
   selectedBoatId?: string | null;
   boatSelectionActive?: boolean;
+  onRemoveFromBoard?: (boatId: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: "instructor:unassigned",
@@ -170,6 +176,7 @@ function UnassignedSection({
               assignEnabled={Boolean(assignEnabled)}
               onSelectBoat={onSelectBoat}
               selectedBoatId={selectedBoatId}
+              onRemoveFromBoard={onRemoveFromBoard}
             />
           ))
         ) : (
@@ -198,6 +205,7 @@ export function PlanningBoard({
   onSelectBoat,
   selectedBoatId,
   onAssignBoatToInstructor,
+  onRemoveFromBoard,
 }: PlanningBoardProps) {
   const boatSelectionActive = Boolean(selectedBoatId);
 
@@ -246,6 +254,7 @@ export function PlanningBoard({
             selectedBoatId={selectedBoatId}
             onSelectBoat={onSelectBoat}
             boatSelectionActive={boatSelectionActive}
+            onRemoveFromBoard={onRemoveFromBoard}
           />
         ))}
 
@@ -258,6 +267,7 @@ export function PlanningBoard({
           onSelectBoat={onSelectBoat}
           selectedBoatId={selectedBoatId}
           boatSelectionActive={boatSelectionActive}
+          onRemoveFromBoard={onRemoveFromBoard}
         />
       </div>
     </div>

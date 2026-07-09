@@ -41,3 +41,16 @@ export interface DbInstructor {
   id: string;
   name: string;
 }
+
+export interface DbSessionBoat {
+  id: string;               // session_boats.id — the board-instance id
+  session_id: string;
+  boat_id: string;           // underlying fleet boats.id
+  instructor: string | null;
+  assigned_sailors: (string | null)[];
+  goal: string;
+  status: "ready" | "warn" | "alert" | "idle";
+  warning: string | null;
+  sort_order: number;
+  boats: { name: string; type: "Feva" | "Pico" | "Topper" | "Optimist"; capacity: number } | { name: string; type: "Feva" | "Pico" | "Topper" | "Optimist"; capacity: number }[] | null;
+}

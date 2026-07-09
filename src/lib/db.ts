@@ -1,21 +1,44 @@
-import { supabase, type DbBoat, type DbSailor } from "@/lib/supabase";
-import type { Boat, Sailor, BoatType } from "@/types";
+import { supabase, type DbBoat, type DbSailor, type DbSessionBoat } from "@/lib/supabase";
+import type { Boat, Sailor, BoatType, FleetBoat } from "@/types";
 
 // ── Mappers ────────────────────────────────────────────────────
 
 function dbBoatToBoat(row: DbBoat): Boat {
+  // Legacy `boats` table only ever has two physical seat columns (helm/crew).
+  // Synthesize the generalized seat array from them, sized to capacity.
+  const seats: (string | null)[] = row.capacity <= 1 ? [row.helm] : [row.helm, row.crew];
+  while (seats.length < row.capacity) seats.push(null);
+
   return {
-    id:         row.id,
-    name:       row.name,
-    type:       row.type,
-    instructor: row.instructor,
-    helm:       row.helm,
-    crew:       row.crew,
-    goal:       row.goal,
-    capacity:   row.capacity,
-    filled:     row.filled,
-    status:     row.status,
-    warning:    row.warning,
+    id:              row.id,
+    name:            row.name,
+    type:            row.type,
+    instructor:      row.instructor,
+    assignedSailors: seats.slice(0, row.capacity),
+    goal:            row.goal,
+    capacity:        row.capacity,
+    status:          row.status,
+    warning:         row.warning,
+  };
+}
+
+function dbSessionBoatToBoat(row: DbSessionBoat): Boat {
+  const boatInfo = Array.isArray(row.boats) ? row.boats[0] : row.boats;
+  const capacity = boatInfo?.capacity ?? row.assigned_sailors.length;
+  const seats = [...row.assigned_sailors];
+  while (seats.length < capacity) seats.push(null);
+
+  return {
+    id:              row.id,
+    boatId:          row.boat_id,
+    name:            boatInfo?.name ?? "Unknown boat",
+    type:            boatInfo?.type ?? "Pico",
+    instructor:      row.instructor,
+    assignedSailors: seats.slice(0, capacity),
+    goal:            row.goal,
+    capacity,
+    status:          row.status,
+    warning:         row.warning,
   };
 }
 
@@ -87,16 +110,16 @@ export async function loadInstructorsFromSession(sessionId: string): Promise<str
 
 // ── Savers ─────────────────────────────────────────────────────
 
-/** Upsert a single boat (updates all mutable fields) */
+/** Upsert a single boat (updates all mutable fields) — legacy, no-session board only */
 export async function saveBoat(boat: Boat): Promise<void> {
   const { error } = await supabase
     .from("boats")
     .update({
       instructor: boat.instructor,
-      helm:       boat.helm,
-      crew:       boat.crew,
+      helm:       boat.assignedSailors[0] ?? null,
+      crew:       boat.assignedSailors[1] ?? null,
       goal:       boat.goal,
-      filled:     boat.filled,
+      filled:     boat.assignedSailors.filter(Boolean).length,
       status:     boat.status,
       warning:    boat.warning,
     })
@@ -105,10 +128,88 @@ export async function saveBoat(boat: Boat): Promise<void> {
   if (error) throw new Error(`saveBoat: ${error.message}`);
 }
 
-/** Persist the full boat order after a drag-reorder */
+/** Persist the full boat order after a drag-reorder — legacy, no-session board only */
 export async function saveBoatOrder(boats: Boat[]): Promise<void> {
   const updates = boats.map((b, i) =>
     supabase.from("boats").update({ sort_order: i }).eq("id", b.id)
+  );
+  await Promise.all(updates);
+}
+
+// ── Session-scoped fleet board ──────────────────────────────────
+// Each session gets its own independent board. `boats` is the club's
+// fleet catalog (name/type/capacity); `session_boats` is a join row
+// per boat that's been added to a particular session's board, holding
+// that session's own instructor/seat/status state.
+
+/** Every boat in the club's fleet catalog, regardless of whether it's on any board */
+export async function loadFleetBoats(): Promise<FleetBoat[]> {
+  const { data, error } = await supabase
+    .from("boats")
+    .select("id, name, type, capacity")
+    .order("name", { ascending: true });
+
+  if (error) throw new Error(`loadFleetBoats: ${error.message}`);
+  return data as FleetBoat[];
+}
+
+/** Boats currently on a specific session's board */
+export async function loadSessionBoats(sessionId: string): Promise<Boat[]> {
+  const { data, error } = await supabase
+    .from("session_boats")
+    .select(`*, boats ( name, type, capacity )`)
+    .eq("session_id", sessionId)
+    .order("sort_order", { ascending: true });
+
+  if (error) throw new Error(`loadSessionBoats: ${error.message}`);
+  return (data as DbSessionBoat[]).map(dbSessionBoatToBoat);
+}
+
+/** Add a fleet boat onto a session's board — lands in the Unassigned section, empty seats */
+export async function addBoatToSession(sessionId: string, fleetBoatId: string, capacity: number): Promise<Boat> {
+  const { data, error } = await supabase
+    .from("session_boats")
+    .insert({
+      session_id:       sessionId,
+      boat_id:          fleetBoatId,
+      assigned_sailors: Array(capacity).fill(null),
+      goal:             "",
+      status:           "idle",
+      sort_order:       9999,
+    })
+    .select(`*, boats ( name, type, capacity )`)
+    .single();
+
+  if (error) throw new Error(`addBoatToSession: ${error.message}`);
+  return dbSessionBoatToBoat(data as DbSessionBoat);
+}
+
+/** Take a boat off a session's board — it becomes available in the fleet pool again */
+export async function removeBoatFromSession(sessionBoatId: string): Promise<void> {
+  const { error } = await supabase.from("session_boats").delete().eq("id", sessionBoatId);
+  if (error) throw new Error(`removeBoatFromSession: ${error.message}`);
+}
+
+/** Upsert a single session-board boat (updates all mutable fields) */
+export async function saveSessionBoat(boat: Boat): Promise<void> {
+  const { error } = await supabase
+    .from("session_boats")
+    .update({
+      instructor:       boat.instructor,
+      assigned_sailors: boat.assignedSailors,
+      goal:             boat.goal,
+      status:           boat.status,
+      warning:          boat.warning,
+    })
+    .eq("id", boat.id);
+
+  if (error) throw new Error(`saveSessionBoat: ${error.message}`);
+}
+
+/** Persist the full board order after a drag-reorder, for a session's board */
+export async function saveSessionBoatOrder(boats: Boat[]): Promise<void> {
+  const updates = boats.map((b, i) =>
+    supabase.from("session_boats").update({ sort_order: i }).eq("id", b.id)
   );
   await Promise.all(updates);
 }

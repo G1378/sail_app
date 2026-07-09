@@ -33,6 +33,13 @@ function PersonRow({ label, name }: PersonRowProps) {
   );
 }
 
+/** Seat labels: keep familiar "Helm"/"Crew" for 2-seat boats, else "Sailor N" */
+function seatLabel(capacity: number, index: number): string {
+  if (capacity <= 1) return "Sailor";
+  if (capacity === 2) return index === 0 ? "Helm" : "Crew";
+  return `Sailor ${index + 1}`;
+}
+
 interface BoatCardProps {
   boat: Boat;
   onAssignSailor?: () => void;
@@ -41,9 +48,11 @@ interface BoatCardProps {
   disableBoatDrop?: boolean;
   onSelectBoat?: (boatId: string) => void;
   selectedBoatId?: string | null;
+  /** Only supplied on session-mode boards — sends the boat back to the fleet pool */
+  onRemoveFromBoard?: (boatId: string) => void;
 }
 
-export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true, disableBoatDrop = false, onSelectBoat, selectedBoatId }: BoatCardProps) {
+export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true, disableBoatDrop = false, onSelectBoat, selectedBoatId, onRemoveFromBoard }: BoatCardProps) {
   const sortable = draggable
     ? useSortable({ id: boat.id })
     : ({} as ReturnType<typeof useSortable>);
@@ -71,7 +80,8 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
 
   const statusConfig = getStatusConfig(boat.status);
   const typeColor = getBoatTypeColor(boat.type);
-  const capacityPct = Math.min(100, Math.round((boat.filled / boat.capacity) * 100));
+  const filled = boat.assignedSailors.filter(Boolean).length;
+  const capacityPct = Math.min(100, Math.round((filled / boat.capacity) * 100));
   const capacityColor =
     capacityPct === 100
       ? "bg-green-400"
@@ -125,13 +135,29 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
               {boat.type}
             </span>
           </div>
-          <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
+            {onRemoveFromBoard && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveFromBoard(boat.id);
+                }}
+                title="Remove from board"
+                className="text-gray-300 hover:text-red-500 transition-colors text-xs leading-none px-1"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* People */}
         <div className="flex flex-col gap-2.5">
-          <PersonRow label="Helm" name={boat.helm} />
-          {boat.capacity > 1 && <PersonRow label="Crew" name={boat.crew} />}
+          {boat.assignedSailors.map((name, i) => (
+            <PersonRow key={i} label={seatLabel(boat.capacity, i)} name={name} />
+          ))}
         </div>
 
         {/* Goal */}
@@ -154,7 +180,7 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
             />
           </div>
           <span className="text-[10px] text-gray-400 font-medium tabular-nums">
-            {boat.filled}/{boat.capacity}
+            {filled}/{boat.capacity}
           </span>
         </div>
 

@@ -86,7 +86,7 @@ export default function SessionDetailPage() {
   const { profile, loading: profileLoading } = useProfile({
     requireAuth: "/login",
     requireRole: ["senior_instructor"],
-    redirectIfUnauthorised: "/",
+    redirectIfUnauthorised: "/planner",
   });
 
   const refresh = useCallback(async () => {
@@ -145,7 +145,7 @@ export default function SessionDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-3">
-        <Link href="/" className="text-xl">⛵</Link>
+        <Link href="/planner" className="text-xl">⛵</Link>
         <span className="text-sm font-semibold text-gray-900">Session Detail</span>
         <div className="ml-auto">
           <Link href="/sessions" className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Sessions</Link>

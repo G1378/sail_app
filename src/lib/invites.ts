@@ -63,6 +63,7 @@ export interface InviteValidation {
   is_valid: boolean;
   invite_role: UserRole;
   invitee_name: string | null;
+  club_name: string | null;
 }
 
 /**

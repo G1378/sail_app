@@ -60,6 +60,7 @@ function RegisterInner() {
   const [tokenState, setTokenState] = useState<TokenState>("checking");
   const [inviteRole, setInviteRole] = useState<UserRole | null>(null);
   const [inviteeName, setInviteeName] = useState<string | null>(null);
+  const [clubName, setClubName] = useState<string | null>(null);
 
   const [step, setStep]     = useState<Step>("account");
   const [error, setError]   = useState("");
@@ -79,6 +80,7 @@ function RegisterInner() {
         if (!result || !result.is_valid) { setTokenState("invalid"); return; }
         setInviteRole(result.invite_role);
         setInviteeName(result.invitee_name);
+        setClubName(result.club_name);
         if (result.invitee_name) {
           setProfile((p) => ({ ...p, name: result.invitee_name ?? "" }));
         }
@@ -195,7 +197,9 @@ function RegisterInner() {
             <div className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
               <span className="text-xl">{roleLabel.emoji}</span>
               <div>
-                <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide">You're invited as</p>
+                <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide">
+                  You're invited as{clubName ? ` to ${clubName}` : ""}
+                </p>
                 <p className="text-sm font-semibold text-blue-800">{roleLabel.title}</p>
               </div>
             </div>

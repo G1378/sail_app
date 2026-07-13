@@ -6,6 +6,16 @@ import { supabase } from "@/lib/supabase";
 
 export type UserRole = "sailor" | "instructor" | "senior_instructor" | "club_manager";
 
+/** Where each role lands right after signing in / when visiting the wrong profile page */
+export function roleHomePath(role: UserRole): string {
+  switch (role) {
+    case "club_manager":      return "/club-manager";
+    case "senior_instructor": return "/profile/senior-instructor";
+    case "instructor":        return "/profile/instructor";
+    default:                  return "/profile";
+  }
+}
+
 export interface UserProfile {
   id: string;
   name: string;

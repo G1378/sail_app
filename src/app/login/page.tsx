@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { roleHomePath, type UserRole } from "@/lib/useProfile";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,18 +18,30 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setLoading(false);
-
     if (signInError) {
+      setLoading(false);
       setError(signInError.message);
       return;
     }
 
+    const userId = signInData.user?.id;
+    if (userId) {
+      const { data: profile } = await supabase
+        .from("sailor_profiles")
+        .select("user_role")
+        .eq("id", userId)
+        .single();
+      setLoading(false);
+      router.push(roleHomePath((profile?.user_role as UserRole) ?? "sailor"));
+      return;
+    }
+
+    setLoading(false);
     router.push("/profile");
   }
 

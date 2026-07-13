@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { roleHomePath, type UserRole } from "@/lib/useProfile";
+import { loadSessions, loadMySailorSignups, cancelSailorSignup, type Session, type MySailorSignup } from "@/lib/sessions";
+import { SessionPortal } from "@/components/SessionPortal";
 import type { SailorRole, RyaStage, Confidence } from "@/types";
 
 const ALL_SKILLS = [
@@ -65,6 +68,11 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [email, setEmail] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const [openSessions, setOpenSessions] = useState<Session[]>([]);
+  const [mySignups, setMySignups]       = useState<MySailorSignup[]>([]);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const [form, setForm] = useState<ProfileForm>({
     name: "",
@@ -73,6 +81,25 @@ export default function ProfilePage() {
     role: "Either",
     skills: [],
   });
+
+  const loadPortal = useCallback(async (uid: string) => {
+    const [allSessions, signups] = await Promise.all([
+      loadSessions(),
+      loadMySailorSignups(uid),
+    ]);
+    setOpenSessions(allSessions.filter((s) => s.status === "open"));
+    setMySignups(signups);
+  }, []);
+
+  async function handleCancelSignup(signupId: string) {
+    setCancellingId(signupId);
+    try {
+      await cancelSailorSignup(signupId);
+      setMySignups((cur) => cur.filter((s) => s.id !== signupId));
+    } finally {
+      setCancellingId(null);
+    }
+  }
 
   // ── Load profile on mount ─────────────────────────────────
   useEffect(() => {
@@ -84,6 +111,7 @@ export default function ProfilePage() {
       }
 
       setEmail(user.email ?? "");
+      setUserId(user.id);
 
       const { data, error: fetchError } = await supabase
         .from("sailor_profiles")
@@ -97,6 +125,13 @@ export default function ProfilePage() {
       }
 
       if (data) {
+        // This page is sailor-only — send other roles to their own page
+        const role = data.user_role as UserRole;
+        if (role && role !== "sailor") {
+          router.push(roleHomePath(role));
+          return;
+        }
+
         setForm({
           name:       data.name,
           stage:      parseInt(data.stage) as RyaStage,
@@ -106,10 +141,11 @@ export default function ProfilePage() {
         });
       }
 
+      await loadPortal(user.id);
       setLoading(false);
     }
     load();
-  }, [router]);
+  }, [router, loadPortal]);
 
   // ── Save ──────────────────────────────────────────────────
   async function handleSave(e: React.FormEvent) {
@@ -192,7 +228,7 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Your profile</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Keep this up to date so instructors can plan sessions around you.</p>
+              <p className="text-sm text-gray-500 mt-0.5">Manage your details and your sessions.</p>
             </div>
           </div>
 
@@ -299,6 +335,15 @@ export default function ProfilePage() {
               {saving ? "Saving…" : saved ? "✓ Saved" : "Save changes"}
             </button>
           </form>
+
+          <div className="mt-10 pt-10 border-t border-gray-100">
+            <SessionPortal
+              openSessions={openSessions}
+              mySignups={mySignups}
+              onCancel={handleCancelSignup}
+              cancellingId={cancellingId}
+            />
+          </div>
         </div>
       </main>
     </div>

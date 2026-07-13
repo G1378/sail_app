@@ -92,3 +92,52 @@ export function getSignupState(session: Session): "before" | "open" | "closed" {
   if (now > closes) return "closed";
   return "open";
 }
+
+// ── "My sessions" — used by the role-specific profile portal pages ──
+
+function normaliseJoinedSession(raw: Session | Session[] | null | undefined): Session | null {
+  if (!raw) return null;
+  return Array.isArray(raw) ? raw[0] ?? null : raw;
+}
+
+export interface MySailorSignup {
+  id: string;
+  session: Session;
+}
+
+export async function loadMySailorSignups(userId: string): Promise<MySailorSignup[]> {
+  const { data, error } = await supabase
+    .from("session_signups")
+    .select(`id, sessions (*)`)
+    .eq("sailor_profile_id", userId);
+  if (error) throw new Error(error.message);
+  return (data as { id: string; sessions: Session | Session[] | null }[])
+    .map((row) => ({ id: row.id, session: normaliseJoinedSession(row.sessions) }))
+    .filter((row): row is MySailorSignup => row.session !== null);
+}
+
+export async function cancelSailorSignup(signupId: string): Promise<void> {
+  const { error } = await supabase.from("session_signups").delete().eq("id", signupId);
+  if (error) throw new Error(error.message);
+}
+
+export interface MyInstructorSignup {
+  id: string;
+  session: Session;
+}
+
+export async function loadMyInstructorSignups(userId: string): Promise<MyInstructorSignup[]> {
+  const { data, error } = await supabase
+    .from("instructor_signups")
+    .select(`id, sessions (*)`)
+    .eq("sailor_profile_id", userId);
+  if (error) throw new Error(error.message);
+  return (data as { id: string; sessions: Session | Session[] | null }[])
+    .map((row) => ({ id: row.id, session: normaliseJoinedSession(row.sessions) }))
+    .filter((row): row is MyInstructorSignup => row.session !== null);
+}
+
+export async function cancelInstructorSignup(signupId: string): Promise<void> {
+  const { error } = await supabase.from("instructor_signups").delete().eq("id", signupId);
+  if (error) throw new Error(error.message);
+}

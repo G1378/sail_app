@@ -142,6 +142,18 @@ export async function saveBoatOrder(boats: Boat[]): Promise<void> {
 // per boat that's been added to a particular session's board, holding
 // that session's own instructor/seat/status state.
 
+/** Counts of each role in the caller's own club — RLS already scopes this to their club */
+export async function loadClubMemberCounts(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from("sailor_profiles").select("user_role");
+  if (error) throw new Error(`loadClubMemberCounts: ${error.message}`);
+
+  const counts: Record<string, number> = {};
+  for (const row of data as { user_role: string }[]) {
+    counts[row.user_role] = (counts[row.user_role] ?? 0) + 1;
+  }
+  return counts;
+}
+
 /** Every boat in the club's fleet catalog, regardless of whether it's on any board */
 export async function loadFleetBoats(): Promise<FleetBoat[]> {
   const { data, error } = await supabase

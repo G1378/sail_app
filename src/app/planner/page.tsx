@@ -84,7 +84,7 @@ function PlannerPageInner() {
   const { profile, loading: profileLoading } = useProfile({
     requireAuth: "/login",
     requireRole: ["senior_instructor"],
-    redirectIfUnauthorised: "/signup",
+    redirectIfUnauthorised: "/",
   });
 
   // ── DB state ──

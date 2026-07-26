@@ -212,7 +212,7 @@ export default function SessionDetailPage() {
         {/* Open in planner button */}
         {(signups.length > 0 || instructorNames.length > 0) && (
           <Link
-            href={`/?session=${id}`}
+            href={`/planner?session=${id}`}
             className="flex items-center justify-center gap-2 w-full rounded-2xl bg-blue-600 py-3.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
           >
             ⛵ Open Fleet Planner — {signups.length} sailor{signups.length !== 1 ? "s" : ""}, {instructorNames.length} instructor{instructorNames.length !== 1 ? "s" : ""} →

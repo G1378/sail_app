@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/lib/useProfile";
+import { AppNav } from "@/components/AppNav";
 import {
   loadSessions,
   loadSignups,
@@ -393,14 +394,7 @@ export default function SessionsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-3">
-        <Link href="/planner" className="text-xl">⛵</Link>
-        <span className="text-sm font-semibold text-gray-900">Session Manager</span>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-gray-400 hidden sm:block">{profile.name}</span>
-          <Link href="/planner" className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Planner</Link>
-        </div>
-      </header>
+      <AppNav profile={profile} />
 
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
         <div className="flex items-center justify-between mb-6">

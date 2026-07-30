@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { loadSession, getSignupState, type Session } from "@/lib/sessions";
 import { loadBoats } from "@/lib/db";
 import { useProfile } from "@/lib/useProfile";
+import { AppNav } from "@/components/AppNav";
 import type { Boat } from "@/types";
 
 // ── Countdown ─────────────────────────────────────────────────
@@ -319,14 +319,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-2">
-        <span className="text-xl">⛵</span>
-        <span className="text-sm font-semibold text-gray-900">Session Sign-up</span>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-gray-400">{profile.name}</span>
-          <Link href="/profile" className="text-xs text-gray-500 hover:text-gray-700">Profile</Link>
-        </div>
-      </header>
+      <AppNav profile={profile} />
 
       <main className="flex-1 max-w-md mx-auto w-full px-4 py-8">
         {/* Session info */}

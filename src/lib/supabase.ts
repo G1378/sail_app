@@ -3,13 +3,24 @@ import { createClient } from "@supabase/supabase-js";
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!url || !key) {
-  throw new Error(
+export const supabaseConfigured = Boolean(url && key);
+
+if (!supabaseConfigured) {
+  // Don't throw here — throwing at module-import time crashes every page that
+  // (even transitively) imports this file with Next's raw error overlay,
+  // instead of the friendly "check your .env.local" screens pages already
+  // build for this exact case. Using obviously-fake values means calls will
+  // fail at request time with a normal, catchable error instead.
+  // eslint-disable-next-line no-console
+  console.error(
     "Missing Supabase env vars. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local"
   );
 }
 
-export const supabase = createClient(url, key);
+export const supabase = createClient(
+  url || "https://placeholder.supabase.co",
+  key || "placeholder-anon-key"
+);
 
 // ── Row types that match the DB schema ────────────────────────
 

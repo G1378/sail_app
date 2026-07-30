@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { roleHomePath, type UserRole } from "@/lib/useProfile";
 import { loadSessions, type Session } from "@/lib/sessions";
 import { loadFleetBoats, loadClubMemberCounts } from "@/lib/db";
+import { AppNav } from "@/components/AppNav";
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -94,11 +95,6 @@ export default function SeniorInstructorProfilePage() {
     setTimeout(() => setSaved(false), 3000);
   }
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.push("/login");
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -115,16 +111,7 @@ export default function SeniorInstructorProfilePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-2">
-        <span className="text-xl">⛵</span>
-        <span className="text-sm font-semibold text-gray-900">Sail Planner</span>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-gray-400 hidden sm:block">{email}</span>
-          <button onClick={handleSignOut} className="text-xs text-gray-500 hover:text-gray-700 font-medium">
-            Sign out
-          </button>
-        </div>
-      </header>
+      <AppNav profile={{ name: name || "Senior Instructor", user_role: "senior_instructor" }} />
 
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-10">
         <div className="mb-8">

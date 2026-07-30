@@ -2,7 +2,8 @@
 
 import { Wind, Compass, Waves, CloudLightning, Zap, Save, Menu, List, RefreshCw } from "lucide-react";
 import { motion } from "framer-motion";
-import { useWeather, DEFAULT_LOCATION } from "@/lib/useWeather";
+import { useWeather } from "@/lib/useWeather";
+import { useClubLocation } from "@/lib/useClubLocation";
 import type { SessionData, WeatherData } from "@/types";
 
 interface SessionHeaderProps {
@@ -11,7 +12,6 @@ interface SessionHeaderProps {
   onSave: () => void;
   onOpenLeft?: () => void;
   onOpenRight?: () => void;
-  onOpenSessions?: () => void;
 }
 
 const WEATHER_ICONS = {
@@ -51,9 +51,9 @@ export function SessionHeader({
   onSave,
   onOpenLeft,
   onOpenRight,
-  onOpenSessions,
 }: SessionHeaderProps) {
-  const weatherState = useWeather(DEFAULT_LOCATION);
+  const clubLocation = useClubLocation();
+  const weatherState = useWeather(clubLocation);
 
   // Decide which weather data to display
   const displayWeather =
@@ -123,7 +123,7 @@ export function SessionHeader({
         {/* Live / error indicator */}
         {isLive && (
           <div
-            title={`Live · ${DEFAULT_LOCATION.name} · updated ${(weatherState as any).fetchedAt?.toLocaleTimeString()}`}
+            title={`Live · ${clubLocation.name} · updated ${(weatherState as any).fetchedAt?.toLocaleTimeString()}`}
             className="flex flex-shrink-0 items-center gap-1 rounded-full border border-green-100 bg-green-50 px-2 py-1 text-[10px] font-medium text-green-700"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
@@ -143,14 +143,6 @@ export function SessionHeader({
 
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-        <motion.button
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.97 }}
-          onClick={onOpenSessions}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-50 sm:w-auto"
-        >
-          📋 Sessions
-        </motion.button>
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.97 }}

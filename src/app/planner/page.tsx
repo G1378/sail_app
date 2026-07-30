@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   DndContext,
@@ -11,6 +12,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
+import { AppNav }         from "@/components/AppNav";
 import { SessionHeader }  from "@/components/SessionHeader";
 import { LeftSidebar }    from "@/components/LeftSidebar";
 import { PlanningBoard }  from "@/components/PlanningBoard";
@@ -407,15 +409,17 @@ function PlannerPageInner() {
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden overflow-y-auto bg-gray-50">
+      <AppNav profile={profile} />
+
       {/* Session context banner — shown when opened from a session */}
       {sessionId && (
         <div className="bg-blue-600 px-4 py-2 flex items-center justify-between gap-3">
           <p className="text-xs font-medium text-white">
             📋 Planning from session sign-ups · {sailors.length} sailor{sailors.length !== 1 ? "s" : ""} loaded
           </p>
-          <a href="/planner" className="text-xs text-blue-200 hover:text-white underline flex-shrink-0">
+          <Link href="/planner" className="text-xs text-blue-200 hover:text-white underline flex-shrink-0">
             Clear session
-          </a>
+          </Link>
         </div>
       )}
 
@@ -425,7 +429,6 @@ function PlannerPageInner() {
         onSave={handleSave}
         onOpenLeft={() => setLeftOpen(true)}
         onOpenRight={() => setRightOpen(true)}
-        onOpenSessions={() => window.location.href = "/sessions"}
       />
 
       <DndContext

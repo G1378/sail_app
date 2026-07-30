@@ -154,6 +154,49 @@ export async function loadClubMemberCounts(): Promise<Record<string, number>> {
   return counts;
 }
 
+export interface ClubLocation {
+  name: string;
+  lat: number;
+  lon: number;
+}
+
+/**
+ * The caller's own club's saved weather location. RLS scopes the `clubs`
+ * table to the caller's own club (same pattern as loadClubMemberCounts),
+ * so no explicit club id filter is needed here.
+ *
+ * Returns null if the club hasn't set a location yet — callers should fall
+ * back to a sensible default (see DEFAULT_LOCATION in lib/useWeather.ts).
+ */
+export async function loadClubLocation(): Promise<ClubLocation | null> {
+  const { data, error } = await supabase
+    .from("clubs")
+    .select("location_name, location_lat, location_lon")
+    .maybeSingle();
+
+  if (error) throw new Error(`loadClubLocation: ${error.message}`);
+  if (!data || data.location_lat == null || data.location_lon == null) return null;
+
+  return {
+    name: data.location_name ?? "Club location",
+    lat:  data.location_lat,
+    lon:  data.location_lon,
+  };
+}
+
+/** Sets the club's weather location — club manager only (enforced by RLS) */
+export async function saveClubLocation(location: ClubLocation): Promise<void> {
+  const { error } = await supabase
+    .from("clubs")
+    .update({
+      location_name: location.name,
+      location_lat:  location.lat,
+      location_lon:  location.lon,
+    });
+
+  if (error) throw new Error(`saveClubLocation: ${error.message}`);
+}
+
 /** Every boat in the club's fleet catalog, regardless of whether it's on any board */
 export async function loadFleetBoats(): Promise<FleetBoat[]> {
   const { data, error } = await supabase

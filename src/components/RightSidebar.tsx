@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { BarChart3, CloudSun, Target, Lightbulb } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useWeather, DEFAULT_LOCATION } from "@/lib/useWeather";
+import { useWeather } from "@/lib/useWeather";
+import { useClubLocation } from "@/lib/useClubLocation";
 import type { Boat, Recommendation, SessionData } from "@/types";
 
 // Derive safety items from live wind data
@@ -110,7 +111,8 @@ export function RightSidebar({ boats, session, hidden, onClose }: RightSidebarPr
   const assigned = boats.reduce((acc, b) => acc + b.assignedSailors.filter(Boolean).length, 0);
   const unassigned = totalSailors - assigned;
 
-  const weatherState = useWeather(DEFAULT_LOCATION);
+  const clubLocation = useClubLocation();
+  const weatherState = useWeather(clubLocation);
   const windKn = weatherState.status === "ok"
     ? parseInt(weatherState.data.windSpeed)
     : null;

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useProfile } from "@/lib/useProfile";
 import type { UserRole } from "@/lib/useProfile";
-import { loadBoats, createBoats, deleteBoat } from "@/lib/db";
+import { AppNav } from "@/components/AppNav";
+import { loadBoats, createBoats, deleteBoat, loadClubLocation, saveClubLocation, type ClubLocation } from "@/lib/db";
 import { loadInvites, createInvite, revokeInvite, type ClubInvite } from "@/lib/invites";
+import { searchLocations, formatGeocodeResult, type GeocodeResult } from "@/lib/geocoding";
+import { DEFAULT_LOCATION } from "@/lib/useWeather";
 import type { Boat, BoatType } from "@/types";
 
 const BOAT_TYPES: BoatType[] = ["Feva", "Pico", "Topper", "Optimist"];
@@ -306,6 +308,130 @@ function InvitesTab() {
   );
 }
 
+// ── Weather tab ──────────────────────────────────────────────────
+
+function WeatherTab() {
+  const [current, setCurrent] = useState<ClubLocation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<GeocodeResult[]>([]);
+  const [searchError, setSearchError] = useState("");
+
+  useEffect(() => {
+    loadClubLocation()
+      .then(setCurrent)
+      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load club location"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setSearchError("");
+    if (!query.trim()) return;
+    setSearching(true);
+    try {
+      const found = await searchLocations(query);
+      setResults(found);
+      if (found.length === 0) setSearchError("No matches — try a nearby larger town.");
+    } catch (err: unknown) {
+      setSearchError(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function handleChoose(result: GeocodeResult) {
+    setError("");
+    setSaving(true);
+    try {
+      const location: ClubLocation = {
+        name: formatGeocodeResult(result),
+        lat:  result.latitude,
+        lon:  result.longitude,
+      };
+      await saveClubLocation(location);
+      setCurrent(location);
+      setResults([]);
+      setQuery("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save location");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="text-sm text-gray-400 px-1">Loading…</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Weather location</h2>
+        <p className="text-xs text-gray-400 mb-4">
+          Wind and tide readings on the planner and session pages are pulled for this location automatically.
+        </p>
+
+        <div className="flex items-center gap-2 rounded-xl bg-blue-50 px-4 py-3 mb-5">
+          <span className="text-lg">📍</span>
+          <div>
+            <p className="text-sm font-medium text-blue-900">
+              {current ? current.name : DEFAULT_LOCATION.name}
+            </p>
+            <p className="text-xs text-blue-500">
+              {current ? "Set by your club" : "Default — no club location set yet"}
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSearch} className="flex gap-2 mb-3">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search for your club's town or harbour…"
+            className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+          />
+          <button
+            type="submit"
+            disabled={searching}
+            className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors flex-shrink-0"
+          >
+            {searching ? "Searching…" : "Search"}
+          </button>
+        </form>
+
+        {searchError && <p className="text-xs text-red-600 mb-3">{searchError}</p>}
+        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+        {saved && <p className="text-xs text-green-600 mb-3">✓ Weather location updated</p>}
+
+        {results.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {results.map((r, i) => (
+              <button
+                key={i}
+                onClick={() => handleChoose(r)}
+                disabled={saving}
+                className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 text-left text-sm hover:border-blue-300 hover:bg-blue-50 transition-colors disabled:opacity-60"
+              >
+                <span className="text-gray-800">{formatGeocodeResult(r)}</span>
+                <span className="text-xs text-blue-600 font-medium">Use this</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────
 
 export default function ClubManagerPage() {
@@ -314,7 +440,7 @@ export default function ClubManagerPage() {
     requireRole: ["club_manager"],
     redirectIfUnauthorised: "/planner",
   });
-  const [tab, setTab] = useState<"boats" | "invites">("boats");
+  const [tab, setTab] = useState<"boats" | "invites" | "weather">("boats");
 
   if (profileLoading || !profile) {
     return (
@@ -326,14 +452,7 @@ export default function ClubManagerPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-3">
-        <Link href="/planner" className="text-xl">⛵</Link>
-        <span className="text-sm font-semibold text-gray-900">Club Manager</span>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="text-xs text-gray-400 hidden sm:block">{profile.name}</span>
-          <Link href="/planner" className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Planner</Link>
-        </div>
-      </header>
+      <AppNav profile={profile} />
 
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
         <div className="mb-6">
@@ -358,9 +477,17 @@ export default function ClubManagerPage() {
           >
             ✉️ Invites
           </button>
+          <button
+            onClick={() => setTab("weather")}
+            className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
+              tab === "weather" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            🌬️ Weather
+          </button>
         </div>
 
-        {tab === "boats" ? <BoatsTab /> : <InvitesTab />}
+        {tab === "boats" ? <BoatsTab /> : tab === "invites" ? <InvitesTab /> : <WeatherTab />}
       </main>
     </div>
   );

@@ -146,14 +146,22 @@ export function SailorPool({ sailors, isOpen, onToggle, selectedSailorId, onSele
             className="overflow-hidden"
           >
             <div className="flex h-[172px] items-start gap-2.5 overflow-x-auto px-3 pb-4 pt-1 sm:px-5">
-              {sailors.map((sailor) => (
-                <SailorChip
-                  key={sailor.id}
-                  sailor={sailor}
-                  selected={selectedSailorId === sailor.id}
-                  onSelect={() => onSelectSailor?.(sailor.id)}
-                />
-              ))}
+              {sailors.length === 0 ? (
+                <div className="flex w-full h-full items-center justify-center">
+                  <p className="text-xs text-gray-400 text-center px-4">
+                    No sailors in the pool yet — assigned sailors will move to boats below.
+                  </p>
+                </div>
+              ) : (
+                sailors.map((sailor) => (
+                  <SailorChip
+                    key={sailor.id}
+                    sailor={sailor}
+                    selected={selectedSailorId === sailor.id}
+                    onSelect={() => onSelectSailor?.(sailor.id)}
+                  />
+                ))
+              )}
             </div>
           </motion.div>
         )}

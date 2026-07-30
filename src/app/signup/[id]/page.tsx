@@ -121,12 +121,16 @@ function InstructorSignup({ session, userId, profileName }: { session: Session; 
 function SailorSignup({ session, userId, profileName }: { session: Session; userId: string; profileName: string }) {
   const [boats, setBoats]               = useState<Boat[]>([]);
   const [existingSignupId, setExistingSignupId] = useState<string | null>(null);
-  const [selectedBoatId, setSelectedBoatId]     = useState<string | null>(null);
+  const [selectedBoatType, setSelectedBoatType] = useState<string | null>(null);
   const [focusGoal, setFocusGoal]               = useState("");
   const [loading, setLoading]                   = useState(true);
   const [saving, setSaving]                     = useState(false);
   const [success, setSuccess]                   = useState(false);
   const [error, setError]                       = useState("");
+
+  // Boats are individual instances (e.g. "Feva 1", "Feva 2", "Feva 3") but a
+  // sailor only cares about the class, so dedupe down to one option per type.
+  const boatTypes = Array.from(new Set(boats.map((b) => b.type)));
 
   const signupState = getSignupState(session);
 
@@ -142,13 +146,13 @@ function SailorSignup({ session, userId, profileName }: { session: Session; user
       const [allBoats, existing] = await Promise.all([
         loadBoats(),
         supabase.from("session_signups")
-          .select("id, preferred_boat_id, focus_goal")
+          .select("id, preferred_boat_type, focus_goal")
           .eq("session_id", session.id).eq("sailor_profile_id", userId).maybeSingle(),
       ]);
       setBoats(allBoats);
       if (existing.data) {
         setExistingSignupId(existing.data.id);
-        setSelectedBoatId(existing.data.preferred_boat_id ?? null);
+        setSelectedBoatType(existing.data.preferred_boat_type ?? null);
         setFocusGoal(existing.data.focus_goal ?? "");
         setSuccess(true);
       }
@@ -160,9 +164,9 @@ function SailorSignup({ session, userId, profileName }: { session: Session; user
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true); setError("");
-    const payload = { session_id: session.id, sailor_profile_id: userId, preferred_boat_id: selectedBoatId, focus_goal: focusGoal };
+    const payload = { session_id: session.id, sailor_profile_id: userId, preferred_boat_type: selectedBoatType, focus_goal: focusGoal };
     const { error: err } = existingSignupId
-      ? await supabase.from("session_signups").update({ preferred_boat_id: selectedBoatId, focus_goal: focusGoal }).eq("id", existingSignupId)
+      ? await supabase.from("session_signups").update({ preferred_boat_type: selectedBoatType, focus_goal: focusGoal }).eq("id", existingSignupId)
       : await supabase.from("session_signups").insert(payload).select().single().then(({ data, error }) => {
           if (data) setExistingSignupId(data.id);
           return { error };
@@ -185,7 +189,7 @@ function SailorSignup({ session, userId, profileName }: { session: Session; user
     <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center shadow-sm">
       <div className="text-4xl mb-3">🎉</div>
       <p className="text-base font-semibold text-gray-900 mb-1">You're signed up!</p>
-      {selectedBoatId && <p className="text-xs text-gray-500 mt-1">Preferred boat: <span className="font-medium">{boats.find((b) => b.id === selectedBoatId)?.name}</span></p>}
+      {selectedBoatType && <p className="text-xs text-gray-500 mt-1">Preferred boat: <span className="font-medium">{selectedBoatType}</span></p>}
       {focusGoal && <p className="text-xs text-gray-500 mt-0.5">Focus: <span className="font-medium">{focusGoal}</span></p>}
       <div className="flex flex-col gap-2 mt-5">
         <button onClick={() => setSuccess(false)}
@@ -232,16 +236,15 @@ function SailorSignup({ session, userId, profileName }: { session: Session; user
               Preferred boat <span className="text-gray-300 font-normal normal-case">(optional)</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setSelectedBoatId(null)}
-                className={`rounded-xl border px-3 py-3 text-left transition-all ${!selectedBoatId ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+              <button type="button" onClick={() => setSelectedBoatType(null)}
+                className={`rounded-xl border px-3 py-3 text-left transition-all ${!selectedBoatType ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
                 <p className="text-xs font-semibold text-gray-700">No preference</p>
                 <p className="text-[10px] text-gray-400 mt-0.5">Let the instructor decide</p>
               </button>
-              {boats.map((boat) => (
-                <button key={boat.id} type="button" onClick={() => setSelectedBoatId(boat.id)}
-                  className={`rounded-xl border px-3 py-3 text-left transition-all ${selectedBoatId === boat.id ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
-                  <p className="text-xs font-semibold text-gray-700">{boat.name}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{boat.type}</p>
+              {boatTypes.map((type) => (
+                <button key={type} type="button" onClick={() => setSelectedBoatType(type)}
+                  className={`rounded-xl border px-3 py-3 text-left transition-all ${selectedBoatType === type ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+                  <p className="text-xs font-semibold text-gray-700">{type}</p>
                 </button>
               ))}
             </div>

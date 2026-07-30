@@ -17,11 +17,10 @@ export interface SessionSignup {
   id: string;
   session_id: string;
   sailor_profile_id: string;
-  preferred_boat_id: string | null;
+  preferred_boat_type: string | null;
   focus_goal: string;
   signed_up_at: string;
   sailor_profiles?: { name: string; stage: string; role: string; confidence: string };
-  boats?: { name: string; type: string } | null;
 }
 
 export async function loadSessions(): Promise<Session[]> {
@@ -48,8 +47,7 @@ export async function loadSignups(sessionId: string): Promise<SessionSignup[]> {
     .from("session_signups")
     .select(`
       *,
-      sailor_profiles (name, stage, role, confidence),
-      boats (name, type)
+      sailor_profiles (name, stage, role, confidence)
     `)
     .eq("session_id", sessionId)
     .order("signed_up_at", { ascending: true });

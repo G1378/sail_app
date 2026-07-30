@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useProfile } from "@/lib/useProfile";
+import { AppNav } from "@/components/AppNav";
 import { loadInstructorsFromSession } from "@/lib/db";
 import {
   loadSession,
   loadSignups,
   updateSessionStatus,
-  getSignupState,  
+  getSignupState,
   type Session,
   type SessionSignup,
   type SessionStatus,
@@ -144,15 +145,12 @@ export default function SessionDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-3">
-        <Link href="/planner" className="text-xl">⛵</Link>
-        <span className="text-sm font-semibold text-gray-900">Session Detail</span>
-        <div className="ml-auto">
-          <Link href="/sessions" className="text-xs text-gray-500 hover:text-gray-700 font-medium">← Sessions</Link>
-        </div>
-      </header>
+      <AppNav profile={profile} />
 
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8 flex flex-col gap-5">
+        <Link href="/sessions" className="text-xs text-gray-500 hover:text-gray-700 font-medium -mb-1">
+          ← Back to sessions
+        </Link>
 
         {/* Session info */}
         <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
@@ -275,10 +273,10 @@ export default function SessionDetailPage() {
                       {new Date(signup.signed_up_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
-                  {(signup.boats || signup.focus_goal) && (
+                  {(signup.preferred_boat_type || signup.focus_goal) && (
                     <div className="mt-3 pt-3 border-t border-gray-50 flex flex-wrap gap-3 text-xs text-gray-500">
-                      {signup.boats && (
-                        <span>Preferred boat: <span className="font-medium text-gray-700">{signup.boats.name} ({signup.boats.type})</span></span>
+                      {signup.preferred_boat_type && (
+                        <span>Preferred boat: <span className="font-medium text-gray-700">{signup.preferred_boat_type}</span></span>
                       )}
                       {signup.focus_goal && (
                         <span>Focus: <span className="font-medium text-gray-700">{signup.focus_goal}</span></span>

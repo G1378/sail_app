@@ -252,18 +252,26 @@ function PlannerPageInner() {
 
       // ── Sailor → boat ──
       if (activeId.startsWith("sailor:") && overId.startsWith("boat-drop:")) {
-        const sailorId    = activeId.split(":")[1];
+        const sailorId     = activeId.split(":")[1];
         const targetBoatId = overId.split(":")[1];
         const sailor = sailors.find((s) => s.id === sailorId);
         if (!sailor) return;
 
-        const updatedBoats = boats.map((b) =>
-          b.id === targetBoatId ? assignSailorToBoat(b, sailor) : b
-        );
+        const targetBoat = boats.find((b) => b.id === targetBoatId);
+        if (!targetBoat) return;
+
+        const filled = targetBoat.assignedSailors.filter(Boolean).length;
+        if (filled >= targetBoat.capacity) {
+          showToast(`${targetBoat.name} is full`);
+          return;
+        }
+
+        const updatedBoat = assignSailorToBoat(targetBoat, sailor);
+        const updatedBoats = boats.map((b) => (b.id === targetBoatId ? updatedBoat : b));
         setBoats(updatedBoats);
         setSailors((cur) => cur.filter((s) => s.id !== sailorId));
+        showToast(`${sailor.name} assigned to ${targetBoat.name}`);
 
-        const updatedBoat = updatedBoats.find((b) => b.id === targetBoatId)!;
         await Promise.all([persistBoat(updatedBoat), removeSailorFromPool(sailorId)]).catch(() => {});
         return;
       }
@@ -297,7 +305,7 @@ function PlannerPageInner() {
         return;
       }
     },
-    [boats, sailors, assignSailorToBoat, persistBoat, persistBoatOrder]
+    [boats, sailors, assignSailorToBoat, persistBoat, persistBoatOrder, showToast]
   );
 
   const handleAssignByTap = useCallback(
@@ -306,15 +314,22 @@ function PlannerPageInner() {
       const sailor = sailors.find((s) => s.id === selectedSailorId);
       if (!sailor) return;
 
-      const updatedBoats = boats.map((b) =>
-        b.id === boatId ? assignSailorToBoat(b, sailor) : b
-      );
+      const targetBoat = boats.find((b) => b.id === boatId);
+      if (!targetBoat) return;
+
+      const filled = targetBoat.assignedSailors.filter(Boolean).length;
+      if (filled >= targetBoat.capacity) {
+        showToast(`${targetBoat.name} is full`);
+        return;
+      }
+
+      const updatedBoat = assignSailorToBoat(targetBoat, sailor);
+      const updatedBoats = boats.map((b) => (b.id === boatId ? updatedBoat : b));
       setBoats(updatedBoats);
       setSailors((cur) => cur.filter((s) => s.id !== selectedSailorId));
       setSelectedSailorId(null);
       showToast(`${sailor.name} assigned`);
 
-      const updatedBoat = updatedBoats.find((b) => b.id === boatId)!;
       await Promise.all([persistBoat(updatedBoat), removeSailorFromPool(selectedSailorId)]).catch(() => {});
     },
     [selectedSailorId, sailors, boats, assignSailorToBoat, showToast, persistBoat]

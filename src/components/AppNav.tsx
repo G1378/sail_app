@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, Ship, ClipboardList, Wrench, UserRound, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { roleHomePath, type UserRole } from "@/lib/useProfile";
+import { loadSessions } from "@/lib/sessions";
 
 export interface NavProfile {
   name: string;
@@ -40,6 +41,7 @@ export function AppNav({ profile }: { profile: NavProfile }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -49,13 +51,43 @@ export function AppNav({ profile }: { profile: NavProfile }) {
     return () => { active = false; };
   }, []);
 
+  // The nav's Planner link should jump straight into whichever session is
+  // currently open, rather than the no-session (demo) board.
+  useEffect(() => {
+    if (profile.user_role !== "senior_instructor") return;
+    let active = true;
+
+    loadSessions()
+      .then((sessions) => {
+        if (!active) return;
+        const now = Date.now();
+        const openSessions = sessions
+          .filter((s) => s.status === "open")
+          .sort(
+            (a, b) =>
+              Math.abs(new Date(a.date).getTime() - now) -
+              Math.abs(new Date(b.date).getTime() - now)
+          );
+        setOpenSessionId(openSessions[0]?.id ?? null);
+      })
+      .catch(() => {
+        // No open session, or couldn't load — Planner link just falls back to the plain board
+      });
+
+    return () => { active = false; };
+  }, [profile.user_role]);
+
   // Close the mobile menu automatically on route change
   useEffect(() => setOpen(false), [pathname]);
 
-  const links = linksForRole(profile.user_role);
+  const links = linksForRole(profile.user_role).map((link) =>
+    link.href === "/planner" && openSessionId
+      ? { ...link, href: `/planner?session=${openSessionId}` }
+      : link
+  );
 
   function isActive(href: string) {
-    return pathname === href || pathname.startsWith(`${href}/`);
+    return pathname === href.split("?")[0] || pathname.startsWith(`${href.split("?")[0]}/`);
   }
 
   async function handleSignOut() {

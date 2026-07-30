@@ -186,13 +186,25 @@ export async function loadClubLocation(): Promise<ClubLocation | null> {
 
 /** Sets the club's weather location — club manager only (enforced by RLS) */
 export async function saveClubLocation(location: ClubLocation): Promise<void> {
+  // supabase-js refuses to run an UPDATE with no explicit filter, even
+  // though RLS already scopes `clubs` to the caller's own club. So we
+  // look up that club's id first, then filter on it explicitly.
+  const { data: club, error: lookupError } = await supabase
+    .from("clubs")
+    .select("id")
+    .maybeSingle();
+
+  if (lookupError) throw new Error(`saveClubLocation: ${lookupError.message}`);
+  if (!club) throw new Error("saveClubLocation: couldn't find your club");
+
   const { error } = await supabase
     .from("clubs")
     .update({
       location_name: location.name,
       location_lat:  location.lat,
       location_lon:  location.lon,
-    });
+    })
+    .eq("id", club.id);
 
   if (error) throw new Error(`saveClubLocation: ${error.message}`);
 }

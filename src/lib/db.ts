@@ -385,3 +385,26 @@ export async function removeSailorFromPool(sailorId: string): Promise<void> {
 
   if (error) throw new Error(`removeSailorFromPool: ${error.message}`);
 }
+
+/**
+ * Puts a sailor back in the pool after being unassigned from a boat —
+ * the mirror image of removeSailorFromPool. Legacy no-session board only:
+ * a fresh row is inserted (the sailor gets a new id), since the original
+ * row was deleted when they were assigned.
+ */
+export async function restoreSailorToPool(sailor: Sailor): Promise<Sailor> {
+  const { data, error } = await supabase
+    .from("sailors")
+    .insert({
+      name:       sailor.name,
+      stage:      String(sailor.stage),
+      confidence: sailor.confidence,
+      role:       sailor.role,
+      skills:     sailor.skills,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(`restoreSailorToPool: ${error.message}`);
+  return dbSailorToSailor(data as DbSailor);
+}

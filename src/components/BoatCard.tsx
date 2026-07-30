@@ -13,18 +13,32 @@ import type { Boat } from "@/types";
 interface PersonRowProps {
   label: string;
   name: string | null;
+  onUnassign?: () => void;
 }
 
-function PersonRow({ label, name }: PersonRowProps) {
+function PersonRow({ label, name, onUnassign }: PersonRowProps) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[9px] font-semibold text-gray-400 uppercase tracking-wider">
         {label}
       </span>
       {name ? (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 group/seat">
           <Avatar name={name} size="sm" />
           <span className="text-xs text-gray-800 font-medium">{name}</span>
+          {onUnassign && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnassign();
+              }}
+              title={`Unassign ${name}`}
+              className="ml-auto text-gray-300 hover:text-red-500 transition-colors text-xs leading-none px-1 opacity-0 group-hover/seat:opacity-100 focus:opacity-100"
+            >
+              ✕
+            </button>
+          )}
         </div>
       ) : (
         <span className="text-xs text-gray-300 italic">— unassigned</span>
@@ -50,9 +64,11 @@ interface BoatCardProps {
   selectedBoatId?: string | null;
   /** Only supplied on session-mode boards — sends the boat back to the fleet pool */
   onRemoveFromBoard?: (boatId: string) => void;
+  /** Unassigns a single seated sailor, returning them to the pool */
+  onUnassignSeat?: (boatId: string, seatIndex: number) => void;
 }
 
-export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true, disableBoatDrop = false, onSelectBoat, selectedBoatId, onRemoveFromBoard }: BoatCardProps) {
+export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true, disableBoatDrop = false, onSelectBoat, selectedBoatId, onRemoveFromBoard, onUnassignSeat }: BoatCardProps) {
   const sortable = draggable
     ? useSortable({ id: boat.id })
     : ({} as ReturnType<typeof useSortable>);
@@ -156,7 +172,12 @@ export function BoatCard({ boat, onAssignSailor, assignEnabled, draggable = true
         {/* People */}
         <div className="flex flex-col gap-2.5">
           {boat.assignedSailors.map((name, i) => (
-            <PersonRow key={i} label={seatLabel(boat.capacity, i)} name={name} />
+            <PersonRow
+              key={i}
+              label={seatLabel(boat.capacity, i)}
+              name={name}
+              onUnassign={name && onUnassignSeat ? () => onUnassignSeat(boat.id, i) : undefined}
+            />
           ))}
         </div>
 

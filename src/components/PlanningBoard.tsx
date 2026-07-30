@@ -22,6 +22,7 @@ interface PlanningBoardProps {
   selectedBoatId?: string | null;
   onAssignBoatToInstructor?: (instructor: string) => void;
   onRemoveFromBoard?: (boatId: string) => void;
+  onUnassignSeat?: (boatId: string, seatIndex: number) => void;
 }
 
 function InstructorSection({
@@ -33,6 +34,7 @@ function InstructorSection({
   onSelectBoat,
   boatSelectionActive,
   onRemoveFromBoard,
+  onUnassignSeat,
 }: {
   instructor: string;
   boats: Boat[];
@@ -42,6 +44,7 @@ function InstructorSection({
   onSelectBoat?: (id: string) => void;
   boatSelectionActive?: boolean;
   onRemoveFromBoard?: (boatId: string) => void;
+  onUnassignSeat?: (boatId: string, seatIndex: number) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `instructor:${instructor}`,
@@ -95,6 +98,7 @@ function InstructorSection({
             onSelectBoat={onSelectBoat}
             selectedBoatId={selectedBoatId}
             onRemoveFromBoard={onRemoveFromBoard}
+            onUnassignSeat={onUnassignSeat}
           />
         ))}
       </div>
@@ -112,6 +116,7 @@ function UnassignedSection({
   selectedBoatId,
   boatSelectionActive,
   onRemoveFromBoard,
+  onUnassignSeat,
 }: {
   boats: Boat[];
   onAssignByTap?: (boatId: string) => void;
@@ -122,6 +127,7 @@ function UnassignedSection({
   selectedBoatId?: string | null;
   boatSelectionActive?: boolean;
   onRemoveFromBoard?: (boatId: string) => void;
+  onUnassignSeat?: (boatId: string, seatIndex: number) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: "instructor:unassigned",
@@ -177,6 +183,7 @@ function UnassignedSection({
               onSelectBoat={onSelectBoat}
               selectedBoatId={selectedBoatId}
               onRemoveFromBoard={onRemoveFromBoard}
+              onUnassignSeat={onUnassignSeat}
             />
           ))
         ) : (
@@ -206,6 +213,7 @@ export function PlanningBoard({
   selectedBoatId,
   onAssignBoatToInstructor,
   onRemoveFromBoard,
+  onUnassignSeat,
 }: PlanningBoardProps) {
   const boatSelectionActive = Boolean(selectedBoatId);
 
@@ -255,6 +263,7 @@ export function PlanningBoard({
             onSelectBoat={onSelectBoat}
             boatSelectionActive={boatSelectionActive}
             onRemoveFromBoard={onRemoveFromBoard}
+            onUnassignSeat={onUnassignSeat}
           />
         ))}
 
@@ -268,6 +277,7 @@ export function PlanningBoard({
           selectedBoatId={selectedBoatId}
           boatSelectionActive={boatSelectionActive}
           onRemoveFromBoard={onRemoveFromBoard}
+          onUnassignSeat={onUnassignSeat}
         />
       </div>
     </div>

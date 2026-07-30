@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, Suspense } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -37,6 +37,7 @@ import {
   saveBoatOrder,
   saveSessionBoatOrder,
   removeSailorFromPool,
+  restoreSailorToPool,
 } from "@/lib/db";
 import type { Boat, Sailor, FleetBoat } from "@/types";
 import { useProfile } from "@/lib/useProfile";
@@ -113,6 +114,11 @@ function PlannerPageInner() {
   const [activeDragType, setActiveDragType]         = useState<"boat" | "sailor" | null>(null);
   const [selectedBoatId, setSelectedBoatId]         = useState<string | null>(null);
 
+  // Remembers full sailor profiles by name so they can be reconstructed if
+  // unassigned from a boat or if their boat is removed from the board —
+  // boat seats only ever store a sailor's name, not their id/stage/etc.
+  const sailorProfileByName = useRef<Map<string, Sailor>>(new Map());
+
   const [toast, setToast] = useState<{ visible: boolean; message: string }>({
     visible: false,
     message: "",
@@ -188,6 +194,27 @@ function PlannerPageInner() {
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
+  /** Recomputes status/warning for a boat given a new seat array */
+  const withDerivedStatus = useCallback((boat: Boat, seats: (string | null)[]): Boat => {
+    const newFilled = seats.filter(Boolean).length;
+    const updatedBoat: Boat = {
+      ...boat,
+      assignedSailors: seats,
+      status:
+        newFilled === boat.capacity && boat.instructor
+          ? "ready"
+          : newFilled > 0
+          ? "warn"
+          : "idle",
+    };
+
+    if (!updatedBoat.instructor)          updatedBoat.warning = "No instructor assigned";
+    else if (newFilled < boat.capacity)   updatedBoat.warning = `${boat.capacity - newFilled} seat${boat.capacity - newFilled !== 1 ? "s" : ""} unassigned`;
+    else                                  updatedBoat.warning = null;
+
+    return updatedBoat;
+  }, []);
+
   const assignSailorToBoat = useCallback((boat: Boat, sailor: Sailor): Boat => {
     const filled = boat.assignedSailors.filter(Boolean).length;
     if (filled >= boat.capacity) return boat;
@@ -211,23 +238,31 @@ function PlannerPageInner() {
       if (emptyIndex !== -1) seats[emptyIndex] = sailor.name;
     }
 
-    const newFilled = seats.filter(Boolean).length;
-    const updatedBoat: Boat = {
-      ...boat,
-      assignedSailors: seats,
-      status:
-        newFilled === boat.capacity && boat.instructor
-          ? "ready"
-          : newFilled > 0
-          ? "warn"
-          : "idle",
+    return withDerivedStatus(boat, seats);
+  }, [withDerivedStatus]);
+
+  /** Clears a single seat, returning the updated boat */
+  const unassignSeatFromBoat = useCallback((boat: Boat, seatIndex: number): Boat => {
+    const seats = [...boat.assignedSailors];
+    seats[seatIndex] = null;
+    return withDerivedStatus(boat, seats);
+  }, [withDerivedStatus]);
+
+  /** Best-effort reconstruction of a sailor's profile from just their name —
+   *  used when we only have the name stored on a boat seat. Falls back to
+   *  sensible generic defaults if we never saw their full profile in this
+   *  session (e.g. they were already assigned when the board was loaded). */
+  const resolveSailorByName = useCallback((name: string): Sailor => {
+    const known = sailorProfileByName.current.get(name);
+    if (known) return known;
+    return {
+      id: `recovered-${name}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      stage: 2,
+      confidence: "Med",
+      role: "Either",
+      skills: [],
     };
-
-    if (!updatedBoat.instructor)          updatedBoat.warning = "No instructor assigned";
-    else if (newFilled < boat.capacity)   updatedBoat.warning = `${boat.capacity - newFilled} seat${boat.capacity - newFilled !== 1 ? "s" : ""} unassigned`;
-    else                                  updatedBoat.warning = null;
-
-    return updatedBoat;
   }, []);
 
   const handleDragEnd = useCallback(
@@ -269,6 +304,7 @@ function PlannerPageInner() {
         const updatedBoat = assignSailorToBoat(targetBoat, sailor);
         const updatedBoats = boats.map((b) => (b.id === targetBoatId ? updatedBoat : b));
         setBoats(updatedBoats);
+        sailorProfileByName.current.set(sailor.name, sailor);
         setSailors((cur) => cur.filter((s) => s.id !== sailorId));
         showToast(`${sailor.name} assigned to ${targetBoat.name}`);
 
@@ -326,6 +362,7 @@ function PlannerPageInner() {
       const updatedBoat = assignSailorToBoat(targetBoat, sailor);
       const updatedBoats = boats.map((b) => (b.id === boatId ? updatedBoat : b));
       setBoats(updatedBoats);
+      sailorProfileByName.current.set(sailor.name, sailor);
       setSailors((cur) => cur.filter((s) => s.id !== selectedSailorId));
       setSelectedSailorId(null);
       showToast(`${sailor.name} assigned`);
@@ -333,6 +370,33 @@ function PlannerPageInner() {
       await Promise.all([persistBoat(updatedBoat), removeSailorFromPool(selectedSailorId)]).catch(() => {});
     },
     [selectedSailorId, sailors, boats, assignSailorToBoat, showToast, persistBoat]
+  );
+
+  const handleUnassignSeat = useCallback(
+    async (boatId: string, seatIndex: number) => {
+      const boat = boats.find((b) => b.id === boatId);
+      if (!boat) return;
+      const name = boat.assignedSailors[seatIndex];
+      if (!name) return;
+
+      const sailor = resolveSailorByName(name);
+      const updatedBoat = unassignSeatFromBoat(boat, seatIndex);
+      const updatedBoats = boats.map((b) => (b.id === boatId ? updatedBoat : b));
+      setBoats(updatedBoats);
+
+      setSailors((cur) => {
+        if (cur.some((s) => s.name === name)) return cur; // already back in the pool somehow
+        return [...cur, sailor].sort((a, b) => a.name.localeCompare(b.name));
+      });
+      showToast(`${name} unassigned`);
+
+      const persistPromises: Promise<unknown>[] = [persistBoat(updatedBoat)];
+      // Legacy no-session board: mirror removeSailorFromPool's delete with an insert,
+      // so the pool stays persisted correctly across reloads.
+      if (!sessionId) persistPromises.push(restoreSailorToPool(sailor));
+      await Promise.all(persistPromises).catch(() => {});
+    },
+    [boats, sessionId, resolveSailorByName, unassignSeatFromBoat, persistBoat, showToast]
   );
 
   const handleAssignBoatToInstructor = useCallback(
@@ -377,17 +441,35 @@ function PlannerPageInner() {
       if (!sessionId) return; // legacy no-session board has no fleet pool to return boats to
       const boat = boats.find((b) => b.id === boatId);
       if (!boat) return;
+
+      // Recover any sailors still assigned to this boat before it disappears
+      const recoveredNames = boat.assignedSailors.filter((n): n is string => Boolean(n));
+      const recovered = recoveredNames.map(resolveSailorByName);
+
       setBoats((cur) => cur.filter((b) => b.id !== boatId));
       setInstructorGroups((cur) => rebuildGroup(cur, boatId, null));
       if (selectedBoatId === boatId) setSelectedBoatId(null);
+
+      if (recovered.length > 0) {
+        setSailors((cur) => {
+          const existingNames = new Set(cur.map((s) => s.name));
+          const toAdd = recovered.filter((s) => !existingNames.has(s.name));
+          return [...cur, ...toAdd].sort((a, b) => a.name.localeCompare(b.name));
+        });
+      }
+
       try {
         await removeBoatFromSession(boatId);
-        showToast(`${boat.name} returned to the fleet pool`);
+        showToast(
+          recovered.length > 0
+            ? `${boat.name} returned to the fleet pool · ${recovered.length} sailor${recovered.length !== 1 ? "s" : ""} back in the pool`
+            : `${boat.name} returned to the fleet pool`
+        );
       } catch {
         showToast("Failed to remove boat — check connection");
       }
     },
-    [boats, sessionId, selectedBoatId, showToast]
+    [boats, sessionId, selectedBoatId, showToast, resolveSailorByName]
   );
 
   // ── Derived data ──────────────────────────────────────────
@@ -490,6 +572,7 @@ function PlannerPageInner() {
                 selectedBoatId={selectedBoatId}
                 onAssignBoatToInstructor={handleAssignBoatToInstructor}
                 onRemoveFromBoard={sessionId ? handleRemoveBoatFromBoard : undefined}
+                onUnassignSeat={handleUnassignSeat}
               />
               <SailorPool
                 sailors={sailors}

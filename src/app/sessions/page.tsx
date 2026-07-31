@@ -330,7 +330,7 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
 
 // ── Read-only card (sailors / instructors / club managers) ──────
 
-function ReadOnlySessionCard({ session }: { session: Session }) {
+function ReadOnlySessionCard({ session, signUpDirectly }: { session: Session; signUpDirectly?: boolean }) {
   const [copied, setCopied] = useState(false);
 
   function copyInviteLink() {
@@ -339,6 +339,25 @@ function ReadOnlySessionCard({ session }: { session: Session }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     });
+  }
+
+  if (signUpDirectly) {
+    return (
+      <Link
+        href={`/signup/${session.id}`}
+        className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex items-center justify-between gap-3 hover:border-blue-300 hover:shadow-md transition-all"
+      >
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">{session.title}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {new Date(session.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+          </p>
+        </div>
+        <span className="flex-shrink-0 text-xs font-semibold text-blue-600">
+          Sign up →
+        </span>
+      </Link>
+    );
   }
 
   return (
@@ -398,7 +417,8 @@ export default function SessionsPage() {
 
   const upcoming  = sessions.filter((s) => s.status !== "completed");
   const completed = sessions.filter((s) => s.status === "completed");
-  // Non-senior-instructors only need to see open sessions — enough to grab a sign-up link
+  const isSailor = profile.user_role === "sailor";
+  // Non-senior-instructors only need to see open sessions — enough to sign up or grab a link
   const visibleUpcoming = isSeniorInstructor ? upcoming : upcoming.filter((s) => s.status === "open");
 
   return (
@@ -410,7 +430,11 @@ export default function SessionsPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900">Sessions</h1>
             <p className="text-sm text-gray-400 mt-0.5">
-              {isSeniorInstructor ? "Create and manage sailor sign-up sessions." : "Grab the sign-up link for an open session."}
+              {isSeniorInstructor
+                ? "Create and manage sailor sign-up sessions."
+                : isSailor
+                ? "Tap an open session to sign yourself up."
+                : "Grab the sign-up link for an open session."}
             </p>
           </div>
           {isSeniorInstructor && <CreateForm onCreated={refresh} />}
@@ -449,7 +473,9 @@ export default function SessionsPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {visibleUpcoming.length > 0 ? (
-              visibleUpcoming.map((s) => <ReadOnlySessionCard key={s.id} session={s} />)
+              visibleUpcoming.map((s) => (
+                <ReadOnlySessionCard key={s.id} session={s} signUpDirectly={isSailor} />
+              ))
             ) : (
               <div className="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400">
                 No open sessions right now.

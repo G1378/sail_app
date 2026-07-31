@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X, Ship, ClipboardList, Wrench, UserRound, LogOut } from "lucide-react";
+import { Menu, X, Ship, ClipboardList, Wrench, UserRound, LogOut, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { roleHomePath, type UserRole } from "@/lib/useProfile";
 import { loadSessions } from "@/lib/sessions";
@@ -28,6 +28,9 @@ function linksForRole(role: UserRole): NavLinkDef[] {
   }
   if (role === "senior_instructor" || role === "instructor" || role === "sailor" || role === "club_manager") {
     links.push({ href: "/sessions", label: "Sessions", icon: ClipboardList });
+  }
+  if (role === "senior_instructor" || role === "instructor" || role === "club_manager") {
+    links.push({ href: "/roster", label: "Roster", icon: Users });
   }
   if (role === "club_manager") {
     links.push({ href: "/club-manager", label: "Club Manager", icon: Wrench });

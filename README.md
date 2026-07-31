@@ -1,40 +1,88 @@
-# Unassign a sailor + fix boats losing sailors on delete
+# New feature: club sailor roster
 
-| File | Goes to | What changed |
+## 1. Run this in Supabase first
+
+```sql
+-- New free-text field for a sailor's next steps
+alter table sailor_profiles add column if not exists next_steps text;
+
+-- Let instructors, senior instructors and club managers read every sailor
+-- in their own club (not just their own row)
+drop policy if exists "staff can read club sailors" on sailor_profiles;
+create policy "staff can read club sailors"
+on sailor_profiles for select
+using (
+  club_id in (
+    select club_id from sailor_profiles
+    where id = auth.uid() and user_role in ('instructor', 'senior_instructor', 'club_manager')
+  )
+);
+
+-- Let the same roles update a sailor's stage/confidence/next_steps
+drop policy if exists "staff can update club sailors" on sailor_profiles;
+create policy "staff can update club sailors"
+on sailor_profiles for update
+using (
+  club_id in (
+    select club_id from sailor_profiles
+    where id = auth.uid() and user_role in ('instructor', 'senior_instructor', 'club_manager')
+  )
+);
+
+-- Only club managers can remove a sailor from the club
+drop policy if exists "club managers can remove club sailors" on sailor_profiles;
+create policy "club managers can remove club sailors"
+on sailor_profiles for delete
+using (
+  club_id in (
+    select club_id from sailor_profiles
+    where id = auth.uid() and user_role = 'club_manager'
+  )
+);
+```
+
+As before, I'm inferring your schema (a `club_id` column on `sailor_profiles`)
+from patterns already used elsewhere in the app (loadClubMemberCounts) —
+please check the column names match before running, and adjust if not.
+
+**Important**: the UPDATE policy above is deliberately broad — it lets
+instructors and senior instructors update *any* column on a club sailor's
+row via a raw Supabase call, not just stage/confidence/next_steps (Postgres
+RLS policies don't restrict by column). The app's own UI only ever sends
+those three fields, but if you want to lock this down at the database level
+too (e.g. so instructors can't rename other sailors via the API directly),
+that needs a Postgres trigger or a Supabase Edge Function instead of a
+plain RLS policy — let me know if you'd like that built.
+
+## 2. Files to copy into your repo
+
+| File in this zip | Goes to | What it does |
 |---|---|---|
-| `src/lib/db.ts` | `src/lib/db.ts` | Added `restoreSailorToPool` — puts a sailor back in the legacy `sailors` table when unassigned (mirror of the existing `removeSailorFromPool`) |
-| `src/components/BoatCard.tsx` | `src/components/BoatCard.tsx` | Each seated sailor now has a small **✕** (visible on hover) to unassign them |
-| `src/components/PlanningBoard.tsx` | `src/components/PlanningBoard.tsx` | Threads the new unassign handler down through the instructor-grouped and unassigned-boats sections |
-| `src/app/planner/page.tsx` | `src/app/planner/page.tsx` | New `handleUnassignSeat` action; fixed `handleRemoveBoatFromBoard` (the boat delete button) to recover assigned sailors back into the pool instead of losing them |
+| `src/lib/roster.ts` | `src/lib/roster.ts` | **New** — load/update/remove sailors in the club roster |
+| `src/app/roster/page.tsx` | `src/app/roster/page.tsx` | **New** — the roster page itself |
+| `src/components/AppNav.tsx` | `src/components/AppNav.tsx` | Added a "Roster" nav link for instructors, senior instructors, and club managers |
 
-## What each fix does
+## What it looks like
 
-**1. Unassign a sailor from a boat**
-Hover over any seated sailor's name on a boat card and click the ✕ that
-appears. They're removed from that seat and returned to the sailor pool,
-sorted back into place — same toast/feedback pattern as assigning.
+- Instructors, senior instructors, and club managers get a new **Roster**
+  link in the nav bar → a searchable list of every sailor in the club.
+- Each sailor's card shows their stage, confidence, role, and next steps at
+  a glance. Tap **Edit** to change stage, confidence, or next steps inline,
+  then **Save**.
+- Club managers only: an inline **Remove from club** button appears in edit
+  mode. It requires two taps ("Remove from club" → "Confirm removal") to
+  avoid accidental deletions.
 
-**2. Deleting a boat no longer loses its sailors**
-The "remove from board" (✕) button on a boat card now recovers any sailors
-still assigned to it and puts them back in the pool before the boat
-disappears, instead of silently discarding them.
+## One thing to know about "remove from club"
 
-## One honest limitation to flag
+There's no safe way to fully delete someone's Supabase *auth* account from
+client-side code (that requires a service-role key, which should never ship
+to the browser). So "remove from club" deletes their `sailor_profiles` row
+— which is what actually represents their club membership everywhere else
+in this app (their role, stage, club_id, etc. all live there). Their login
+account itself still exists, but the next time they sign in they'll hit the
+same "no profile found" path the app already uses elsewhere (redirects to
+`/register`), effectively locking them out of the club until re-invited.
 
-Boats only ever store a sailor's **name** in each seat — not their id,
-stage, confidence, role, or skills. So when I unassign someone (or recover
-them from a deleted boat), I first try to look up their full profile from
-what was cached in this browser session (when they were originally
-assigned). If a sailor was already on a boat *before the page loaded* (e.g.
-the board was saved earlier with them on it), their full profile isn't
-recoverable from memory, so they come back with generic defaults — Stage 2,
-Med confidence, Either role, no skills — rather than their real profile.
-
-Their name is always preserved correctly either way. Fixing this properly
-would mean storing sailor IDs (not names) in each boat seat — a schema
-change I didn't want to make without your sign-off, since it touches how
-boats are saved/loaded everywhere. Happy to do that next if you'd like the
-fully correct version.
-
-Verified with `npx tsc --noEmit` and `npm run build` — both clean, all 13
-routes build successfully.
+Verified with `npx tsc --noEmit` and `npm run build` — both clean, all 14
+routes (13 before + the new roster page) build successfully.

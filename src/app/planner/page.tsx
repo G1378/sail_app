@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, SortableContext, rectSortingStrategy } from "@dnd-kit/sortable";
 import { AppNav }         from "@/components/AppNav";
+import { AddSailorBox }   from "@/components/AddSailorBox";
 import { SessionHeader }  from "@/components/SessionHeader";
 import { LeftSidebar }    from "@/components/LeftSidebar";
 import { PlanningBoard }  from "@/components/PlanningBoard";
@@ -113,6 +114,7 @@ function PlannerPageInner() {
   const [instructorGroups, setInstructorGroups]     = useState<Record<string, string[]>>({});
   const [activeDragType, setActiveDragType]         = useState<"boat" | "sailor" | null>(null);
   const [selectedBoatId, setSelectedBoatId]         = useState<string | null>(null);
+  const [showAddSailor, setShowAddSailor]           = useState(false);
 
   // Remembers full sailor profiles by name so they can be reconstructed if
   // unassigned from a boat or if their boat is removed from the board —
@@ -147,7 +149,12 @@ function PlannerPageInner() {
       ]);
       setBoats(loadedBoats);
       setFleetBoats(loadedFleetBoats);
-      setSailors(loadedSailors);
+
+      // Sailors already seated on a boat shouldn't also show up in the pool
+      // (loadSailorsFromSession returns everyone signed up, regardless of placement)
+      const assignedNames = new Set(loadedBoats.flatMap((b) => b.assignedSailors.filter(Boolean)));
+      setSailors(loadedSailors.filter((s) => !assignedNames.has(s.name)));
+
       setInstructors(loadedInstructors);
 
       // Re-derive instructorGroups from boat.instructor field
@@ -169,6 +176,23 @@ function PlannerPageInner() {
     if (profileLoading || !profile) return;
     loadAll();
   }, [loadAll, profileLoading, profile]);
+
+  /** Pulls any newly-added session sign-ups into the pool, without touching boats/instructor groups */
+  const refreshSailorPool = useCallback(async () => {
+    if (!sessionId) return;
+    try {
+      const freshSailors = await loadSailorsFromSession(sessionId);
+      const assignedNames = new Set(boats.flatMap((b) => b.assignedSailors.filter(Boolean)));
+      setSailors((cur) => {
+        const existingIds = new Set(cur.map((s) => s.id));
+        const newOnes = freshSailors.filter((s) => !assignedNames.has(s.name) && !existingIds.has(s.id));
+        if (newOnes.length === 0) return cur;
+        return [...cur, ...newOnes].sort((a, b) => a.name.localeCompare(b.name));
+      });
+    } catch {
+      // Best effort — the sailor was still added to the session even if this refresh fails
+    }
+  }, [sessionId, boats]);
 
   // ── Toast helper ──────────────────────────────────────────
   const showToast = useCallback((message: string) => {
@@ -510,13 +534,37 @@ function PlannerPageInner() {
 
       {/* Session context banner — shown when opened from a session */}
       {sessionId && (
-        <div className="bg-blue-600 px-4 py-2 flex items-center justify-between gap-3">
+        <div className="bg-blue-600 px-4 py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <p className="text-xs font-medium text-white">
-            📋 Planning from session sign-ups · {sailors.length} sailor{sailors.length !== 1 ? "s" : ""} loaded
+            📋 Planning from session sign-ups · {sailors.length} sailor{sailors.length !== 1 ? "s" : ""} in the pool
           </p>
-          <Link href="/planner" className="text-xs text-blue-200 hover:text-white underline flex-shrink-0">
-            Clear session
-          </Link>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <button
+              onClick={() => setShowAddSailor(true)}
+              className="text-xs text-blue-100 hover:text-white underline"
+            >
+              + Add sailor
+            </button>
+            <Link href="/planner" className="text-xs text-blue-200 hover:text-white underline">
+              Clear session
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {sessionId && showAddSailor && (
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 px-4 py-10 overflow-y-auto"
+          onClick={() => setShowAddSailor(false)}
+        >
+          <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <AddSailorBox
+              sessionId={sessionId}
+              startExpanded
+              onClose={() => setShowAddSailor(false)}
+              onAdded={refreshSailorPool}
+            />
+          </div>
         </div>
       )}
 

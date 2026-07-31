@@ -1,88 +1,44 @@
-# New feature: club sailor roster
+# Add sailor on the Fleet Planner + fix the missing link to session detail
 
-## 1. Run this in Supabase first
+No SQL changes needed this time — everything here is app code.
 
-```sql
--- New free-text field for a sailor's next steps
-alter table sailor_profiles add column if not exists next_steps text;
-
--- Let instructors, senior instructors and club managers read every sailor
--- in their own club (not just their own row)
-drop policy if exists "staff can read club sailors" on sailor_profiles;
-create policy "staff can read club sailors"
-on sailor_profiles for select
-using (
-  club_id in (
-    select club_id from sailor_profiles
-    where id = auth.uid() and user_role in ('instructor', 'senior_instructor', 'club_manager')
-  )
-);
-
--- Let the same roles update a sailor's stage/confidence/next_steps
-drop policy if exists "staff can update club sailors" on sailor_profiles;
-create policy "staff can update club sailors"
-on sailor_profiles for update
-using (
-  club_id in (
-    select club_id from sailor_profiles
-    where id = auth.uid() and user_role in ('instructor', 'senior_instructor', 'club_manager')
-  )
-);
-
--- Only club managers can remove a sailor from the club
-drop policy if exists "club managers can remove club sailors" on sailor_profiles;
-create policy "club managers can remove club sailors"
-on sailor_profiles for delete
-using (
-  club_id in (
-    select club_id from sailor_profiles
-    where id = auth.uid() and user_role = 'club_manager'
-  )
-);
-```
-
-As before, I'm inferring your schema (a `club_id` column on `sailor_profiles`)
-from patterns already used elsewhere in the app (loadClubMemberCounts) —
-please check the column names match before running, and adjust if not.
-
-**Important**: the UPDATE policy above is deliberately broad — it lets
-instructors and senior instructors update *any* column on a club sailor's
-row via a raw Supabase call, not just stage/confidence/next_steps (Postgres
-RLS policies don't restrict by column). The app's own UI only ever sends
-those three fields, but if you want to lock this down at the database level
-too (e.g. so instructors can't rename other sailors via the API directly),
-that needs a Postgres trigger or a Supabase Edge Function instead of a
-plain RLS policy — let me know if you'd like that built.
-
-## 2. Files to copy into your repo
-
-| File in this zip | Goes to | What it does |
+| File | Goes to | What changed |
 |---|---|---|
-| `src/lib/roster.ts` | `src/lib/roster.ts` | **New** — load/update/remove sailors in the club roster |
-| `src/app/roster/page.tsx` | `src/app/roster/page.tsx` | **New** — the roster page itself |
-| `src/components/AppNav.tsx` | `src/components/AppNav.tsx` | Added a "Roster" nav link for instructors, senior instructors, and club managers |
+| `src/components/AddSailorBox.tsx` | `src/components/AddSailorBox.tsx` | **New** — extracted the "add a sailor manually" UI into its own component so both pages can share it. It now fetches its own data (roster + current sign-ups), so it no longer needs to be told who's already signed up. |
+| `src/app/sessions/[id]/page.tsx` | `src/app/sessions/[id]/page.tsx` | Now imports the shared component instead of defining its own copy |
+| `src/app/planner/page.tsx` | `src/app/planner/page.tsx` | New **"+ Add sailor"** link in the blue session banner, opens the add-sailor box as a modal. Also fixed a real bug (see below). |
+| `src/app/sessions/page.tsx` | `src/app/sessions/page.tsx` | Session titles are now links to the detail page, plus a new **"👥 Manage sign-ups"** button next to Fleet Planner |
 
-## What it looks like
+## The actual bug behind "hard to find"
 
-- Instructors, senior instructors, and club managers get a new **Roster**
-  link in the nav bar → a searchable list of every sailor in the club.
-- Each sailor's card shows their stage, confidence, role, and next steps at
-  a glance. Tap **Edit** to change stage, confidence, or next steps inline,
-  then **Save**.
-- Club managers only: an inline **Remove from club** button appears in edit
-  mode. It requires two taps ("Remove from club" → "Confirm removal") to
-  avoid accidental deletions.
+You were right — I checked, and the Sessions list had **no link to the
+session detail page at all**. Every card had buttons for Fleet Planner,
+copy invite link, and status changes, but nothing pointing at
+`/sessions/[id]`. Unless you already knew the URL, there was no way to get
+there through the UI. Fixed now with both a clickable title and an explicit
+"Manage sign-ups" button.
 
-## One thing to know about "remove from club"
+## Fleet Planner: add sailor
 
-There's no safe way to fully delete someone's Supabase *auth* account from
-client-side code (that requires a service-role key, which should never ship
-to the browser). So "remove from club" deletes their `sailor_profiles` row
-— which is what actually represents their club membership everywhere else
-in this app (their role, stage, club_id, etc. all live there). Their login
-account itself still exists, but the next time they sign in they'll hit the
-same "no profile found" path the app already uses elsewhere (redirects to
-`/register`), effectively locking them out of the club until re-invited.
+In the blue banner that shows when you're planning from a session, there's
+now a **"+ Add sailor"** link next to "Clear session." It opens the same
+add-sailor search box as a modal — pick someone, they land straight in the
+pool, ready to drag onto a boat. You can add several in a row without
+closing the modal.
+
+## Bonus bug fix along the way
+
+While wiring the pool refresh for the new button, I found (and fixed) a
+real bug: reloading the Fleet Planner for a session with existing boat
+assignments would show already-assigned sailors **both** on their boat
+*and* back in the pool, since the pool load never excluded people already
+seated somewhere. Fixed — the pool now correctly excludes anyone already on
+a boat, on both the initial load and the new "add sailor" refresh.
+
+One side effect: the banner text now says "X sailors **in the pool**"
+instead of "X sailors loaded," since that count no longer includes
+already-assigned sailors — it's more accurate, but the wording changed
+slightly.
 
 Verified with `npx tsc --noEmit` and `npm run build` — both clean, all 14
-routes (13 before + the new roster page) build successfully.
+routes build successfully.

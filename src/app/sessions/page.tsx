@@ -216,7 +216,9 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
     <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">{session.title}</h3>
+          <Link href={`/sessions/${session.id}`} className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+            {session.title}
+          </Link>
           <p className="text-xs text-gray-400 mt-0.5">
             {new Date(session.date).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
           </p>
@@ -242,6 +244,13 @@ function SessionCard({ session, onRefresh }: { session: Session; onRefresh: () =
       )}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
+        <Link
+          href={`/sessions/${session.id}`}
+          className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+        >
+          👥 Manage sign-ups
+        </Link>
+
         <Link
           href={`/planner?session=${session.id}`}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"

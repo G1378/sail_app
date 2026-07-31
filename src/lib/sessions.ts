@@ -20,6 +20,7 @@ export interface SessionSignup {
   preferred_boat_type: string | null;
   focus_goal: string;
   signed_up_at: string;
+  added_by_instructor: boolean;
   sailor_profiles?: { name: string; stage: string; role: string; confidence: string };
 }
 
@@ -89,6 +90,30 @@ export function getSignupState(session: Session): "before" | "open" | "closed" {
   if (now < opens)  return "before";
   if (now > closes) return "closed";
   return "open";
+}
+
+/**
+ * Manually signs a sailor up to a session on their behalf — for sailors who
+ * can't sign up themselves. Senior instructor only (RLS).
+ */
+export async function addSailorSignup(sessionId: string, sailorId: string): Promise<void> {
+  const { error } = await supabase
+    .from("session_signups")
+    .insert({
+      session_id: sessionId,
+      sailor_profile_id: sailorId,
+      added_by_instructor: true,
+    });
+  if (error) throw new Error(`addSailorSignup: ${error.message}`);
+}
+
+/** Removes a sign-up entirely — e.g. undoing a manual add, or a sailor dropping out */
+export async function removeSignup(signupId: string): Promise<void> {
+  const { error } = await supabase
+    .from("session_signups")
+    .delete()
+    .eq("id", signupId);
+  if (error) throw new Error(`removeSignup: ${error.message}`);
 }
 
 // ── "My sessions" — used by the role-specific profile portal pages ──

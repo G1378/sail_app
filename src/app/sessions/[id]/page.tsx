@@ -274,7 +274,7 @@ export default function SessionDetailPage() {
                 Close sign-ups
               </button>
             )}
-            {(session.status === "open" || session.status === "closed") && (
+            {session.status === "closed" && (
               <button onClick={() => { updateSessionStatus(id, "completed"); refresh(); }}
                 className="rounded-lg bg-gray-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors">
                 Mark complete

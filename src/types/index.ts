@@ -36,6 +36,8 @@ export interface Sailor {
   confidence: Confidence;
   role: SailorRole;
   skills: string[];
+  /** Boat class they asked for at sign-up — only set in session mode, null/undefined otherwise */
+  preferredBoatType?: string | null;
 }
 
 export interface Recommendation {

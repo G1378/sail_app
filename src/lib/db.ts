@@ -346,6 +346,7 @@ export async function loadSailorsFromSession(sessionId: string): Promise<Sailor[
     .from("session_signups")
     .select(`
       sailor_profile_id,
+      preferred_boat_type,
       sailor_profiles (
         id, name, stage, confidence, role, skills
       )
@@ -356,6 +357,7 @@ export async function loadSailorsFromSession(sessionId: string): Promise<Sailor[
 
   type Row = {
     sailor_profile_id: string;
+    preferred_boat_type: string | null;
     sailor_profiles: { id: string; name: string; stage: string; confidence: string; role: string; skills: string[] } | { id: string; name: string; stage: string; confidence: string; role: string; skills: string[] }[] | null;
   };
 
@@ -366,12 +368,13 @@ export async function loadSailorsFromSession(sessionId: string): Promise<Sailor[
       const profile = Array.isArray(p) ? p[0] : p;
       if (!profile) return [];
       return [{
-        id:         profile.id,
-        name:       profile.name,
-        stage:      parseInt(profile.stage) as 1 | 2 | 3 | 4,
-        confidence: profile.confidence as Sailor["confidence"],
-        role:       profile.role as Sailor["role"],
-        skills:     profile.skills ?? [],
+        id:                profile.id,
+        name:              profile.name,
+        stage:             parseInt(profile.stage) as 1 | 2 | 3 | 4,
+        confidence:        profile.confidence as Sailor["confidence"],
+        role:              profile.role as Sailor["role"],
+        skills:            profile.skills ?? [],
+        preferredBoatType: row.preferred_boat_type,
       }];
     });
 }

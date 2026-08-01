@@ -4,7 +4,7 @@ import { ChevronUp, ChevronDown, GripVertical } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { cn, getSkillColor, getConfidenceColor } from "@/lib/utils";
+import { cn, getConfidenceColor } from "@/lib/utils";
 import type { Sailor } from "@/types";
 
 interface SailorChipProps {
@@ -18,12 +18,6 @@ const STAGE_COLORS: Record<number, string> = {
   2: "bg-blue-50 text-blue-800",
   3: "bg-green-50 text-green-800",
   4: "bg-purple-50 text-purple-800",
-};
-
-const ROLE_ICONS: Record<string, string> = {
-  Helm: "⛵",
-  Crew: "🪝",
-  Either: "↔",
 };
 
 function SailorChip({ sailor, selected, onSelect }: SailorChipProps) {
@@ -78,24 +72,10 @@ function SailorChip({ sailor, selected, onSelect }: SailorChipProps) {
         </span>
       </div>
 
-      <div className="flex items-center gap-1 mb-2">
+      <div className="flex items-center gap-1">
         <span className="text-[10px] text-gray-400">
-          {ROLE_ICONS[sailor.role] ?? ""} Prefers {sailor.role}
+          {sailor.preferredBoatType ? `⛵ Wants: ${sailor.preferredBoatType}` : "⛵ No boat preference"}
         </span>
-      </div>
-
-      <div className="flex flex-wrap gap-1">
-        {sailor.skills.map((skill) => (
-          <span
-            key={skill}
-            className={cn(
-              "text-[9px] font-semibold px-1.5 py-0.5 rounded-full",
-              getSkillColor(skill)
-            )}
-          >
-            {skill}
-          </span>
-        ))}
       </div>
     </motion.div>
   );

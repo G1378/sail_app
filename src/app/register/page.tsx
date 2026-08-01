@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { validateInvite } from "@/lib/invites";
+import { validateJoinCode } from "@/lib/joinCode";
 import type { UserRole } from "@/lib/useProfile";
 import type { SailorRole, RyaStage, Confidence } from "@/types";
 
@@ -49,20 +49,16 @@ function OptionButton({ selected, onClick, children }: {
   );
 }
 
-type TokenState = "checking" | "invalid" | "valid";
-type Step = "account" | "profile" | "done";
+type Step = "code" | "account" | "profile" | "done";
 
 function RegisterInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
 
-  const [tokenState, setTokenState] = useState<TokenState>("checking");
-  const [inviteRole, setInviteRole] = useState<UserRole | null>(null);
-  const [inviteeName, setInviteeName] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [chosenRole, setChosenRole] = useState<UserRole | null>(null);
   const [clubName, setClubName] = useState<string | null>(null);
 
-  const [step, setStep]     = useState<Step>("account");
+  const [step, setStep]     = useState<Step>("code");
   const [error, setError]   = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -72,22 +68,26 @@ function RegisterInner() {
     role: "Either" as SailorRole, skills: [] as string[],
   });
 
-  // Validate the invite token on load — no token, no registration.
-  useEffect(() => {
-    if (!token) { setTokenState("invalid"); return; }
-    validateInvite(token)
-      .then((result) => {
-        if (!result || !result.is_valid) { setTokenState("invalid"); return; }
-        setInviteRole(result.invite_role);
-        setInviteeName(result.invitee_name);
-        setClubName(result.club_name);
-        if (result.invitee_name) {
-          setProfile((p) => ({ ...p, name: result.invitee_name ?? "" }));
-        }
-        setTokenState("valid");
-      })
-      .catch(() => setTokenState("invalid"));
-  }, [token]);
+  // Step 0 — check the club join code and confirm the chosen role
+  async function handleCodeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!chosenRole) { setError("Please choose which role you're joining as."); return; }
+    setLoading(true);
+    try {
+      const result = await validateJoinCode(code.trim());
+      if (!result || !result.is_valid) {
+        setError("That code isn't valid or has expired — ask your club manager for the current one.");
+        return;
+      }
+      setClubName(result.club_name);
+      setStep("account");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to check code");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Step 1 — create auth account
   async function handleAccountSubmit(e: React.FormEvent) {
@@ -101,7 +101,7 @@ function RegisterInner() {
     if (err) { setError(err.message); return; }
 
     // Instructors / senior instructors / club managers skip the sailing-specific profile step
-    if (inviteRole === "sailor") { setStep("profile"); }
+    if (chosenRole === "sailor") { setStep("profile"); }
     else { await handleSaveProfile(); }
   }
 
@@ -114,17 +114,18 @@ function RegisterInner() {
   }
 
   async function handleSaveProfile() {
-    if (!inviteRole) return;
+    if (!chosenRole) return;
     setLoading(true);
 
-    const isSailor = inviteRole === "sailor";
-    const { error: err } = await supabase.rpc("complete_registration", {
-      invite_token: token,
-      p_name:       profile.name.trim() || "Unknown",
-      p_stage:      isSailor ? String(profile.stage) : "1",
-      p_confidence: isSailor ? profile.confidence : "High",
-      p_role:       isSailor ? profile.role : "Either",
-      p_skills:     isSailor ? profile.skills : [],
+    const isSailor = chosenRole === "sailor";
+    const { error: err } = await supabase.rpc("complete_registration_with_code", {
+      p_code:        code.trim(),
+      p_role:        chosenRole,
+      p_name:        profile.name.trim() || "Unknown",
+      p_stage:       isSailor ? String(profile.stage) : "1",
+      p_confidence:  isSailor ? profile.confidence : "High",
+      p_sailor_role: isSailor ? profile.role : "Either",
+      p_skills:      isSailor ? profile.skills : [],
     });
 
     setLoading(false);
@@ -139,44 +140,9 @@ function RegisterInner() {
     }));
   }
 
-  const STEPS: Step[] = inviteRole === "sailor" ? ["account", "profile"] : ["account"];
+  const STEPS: Step[] = chosenRole === "sailor" ? ["code", "account", "profile"] : ["code", "account"];
   const stepIndex = STEPS.indexOf(step);
-
-  // ── Token still being checked ──
-  if (tokenState === "checking") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <span className="text-3xl animate-bounce">⛵</span>
-      </div>
-    );
-  }
-
-  // ── No valid invite — registration is invite-only ──
-  if (tokenState === "invalid") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <header className="border-b border-gray-100 bg-white px-5 py-4 flex items-center gap-2">
-          <span className="text-xl">⛵</span>
-          <span className="text-sm font-semibold text-gray-900">Sail Planner</span>
-        </header>
-        <main className="flex-1 flex items-center justify-center px-4">
-          <div className="w-full max-w-md text-center py-8">
-            <div className="text-5xl mb-5">🔒</div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Invite required</h1>
-            <p className="text-sm text-gray-500 mb-8">
-              This registration link is missing, invalid, expired, or has already been used.
-              Ask your club manager for a new invite link.
-            </p>
-            <Link href="/login" className="inline-block w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition-colors">
-              Go to sign in
-            </Link>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const roleLabel = inviteRole ? ROLE_LABELS[inviteRole] : null;
+  const roleLabel = chosenRole ? ROLE_LABELS[chosenRole] : null;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -192,13 +158,13 @@ function RegisterInner() {
       <main className="flex-1 flex items-start justify-center px-4 py-10">
         <div className="w-full max-w-md">
 
-          {/* Invite banner */}
-          {step !== "done" && roleLabel && (
+          {/* Club banner — shown once the code's been validated */}
+          {step !== "done" && step !== "code" && roleLabel && (
             <div className="mb-6 flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
               <span className="text-xl">{roleLabel.emoji}</span>
               <div>
                 <p className="text-xs text-blue-400 font-semibold uppercase tracking-wide">
-                  You're invited as{clubName ? ` to ${clubName}` : ""}
+                  Joining{clubName ? ` ${clubName}` : ""} as
                 </p>
                 <p className="text-sm font-semibold text-blue-800">{roleLabel.title}</p>
               </div>
@@ -211,7 +177,7 @@ function RegisterInner() {
               {STEPS.map((s, i) => {
                 const isComplete = i < stepIndex;
                 const isActive   = step === s;
-                const label = s === "account" ? "Account" : "Your profile";
+                const label = s === "code" ? "Club code" : s === "account" ? "Account" : "Your profile";
                 return (
                   <div key={s} className="flex items-center gap-2">
                     <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 transition-colors ${
@@ -226,6 +192,55 @@ function RegisterInner() {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ── Step 0: Club code + role ── */}
+          {step === "code" && (
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">Join your club</h1>
+              <p className="text-sm text-gray-500 mb-8">Enter the code your club manager shared with you.</p>
+              <form onSubmit={handleCodeSubmit} className="flex flex-col gap-6">
+                <div>
+                  <Label>Club code</Label>
+                  <input
+                    type="text"
+                    required
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. 7F3KQD"
+                    maxLength={8}
+                    autoCapitalize="characters"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-lg font-mono tracking-[0.2em] text-center uppercase focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  <p className="text-xs text-gray-400 mt-2">This changes daily — ask your club manager if it doesn't work.</p>
+                </div>
+
+                <div>
+                  <Label>I'm joining as a…</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(ROLE_LABELS) as UserRole[]).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setChosenRole(r)}
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-3 text-left transition-all ${
+                          chosenRole === r ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white hover:border-gray-300"
+                        }`}
+                      >
+                        <span className="text-lg">{ROLE_LABELS[r].emoji}</span>
+                        <span className="text-xs font-semibold text-gray-700">{ROLE_LABELS[r].title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {error && <p className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</p>}
+                <button type="submit" disabled={loading || !code.trim() || !chosenRole}
+                  className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors">
+                  {loading ? "Checking…" : "Continue"}
+                </button>
+              </form>
             </div>
           )}
 
@@ -258,7 +273,7 @@ function RegisterInner() {
                 </div>
 
                 {/* Name field shown here for non-sailors (no separate profile step) */}
-                {inviteRole !== "sailor" && (
+                {chosenRole !== "sailor" && (
                   <div>
                     <Label>Your name</Label>
                     <input type="text" required value={profile.name}
@@ -269,7 +284,7 @@ function RegisterInner() {
                 )}
 
                 {error && <p className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-700">{error}</p>}
-                <button type="submit" disabled={loading || (inviteRole !== "sailor" && !profile.name.trim())}
+                <button type="submit" disabled={loading || (chosenRole !== "sailor" && !profile.name.trim())}
                   className="w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors">
                   {loading ? "Creating account…" : "Continue"}
                 </button>

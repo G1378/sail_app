@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useProfile } from "@/lib/useProfile";
-import type { UserRole } from "@/lib/useProfile";
 import { AppNav } from "@/components/AppNav";
 import { loadBoats, createBoats, deleteBoat, loadClubLocation, saveClubLocation, type ClubLocation } from "@/lib/db";
-import { loadInvites, createInvite, revokeInvite, type ClubInvite } from "@/lib/invites";
+import { loadJoinCode, regenerateJoinCode, type JoinCodeInfo } from "@/lib/joinCode";
 import { searchLocations, formatGeocodeResult, type GeocodeResult } from "@/lib/geocoding";
 import { DEFAULT_LOCATION } from "@/lib/useWeather";
 import type { Boat, BoatType } from "@/types";
@@ -18,13 +17,6 @@ function inferBoatType(name: string): BoatType {
   const match = BOAT_TYPES.find((t) => t.toLowerCase() === name.trim().toLowerCase());
   return match ?? "Pico";
 }
-
-const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
-  { value: "sailor",            label: "Sailor" },
-  { value: "instructor",        label: "Instructor" },
-  { value: "senior_instructor", label: "Senior Instructor" },
-  { value: "club_manager",      label: "Club Manager" },
-];
 
 // ── Boats tab ────────────────────────────────────────────────────
 
@@ -153,156 +145,130 @@ function BoatsTab() {
   );
 }
 
-// ── Invites tab ──────────────────────────────────────────────────
+// ── Join code tab ────────────────────────────────────────────────
 
-function inviteStatus(invite: ClubInvite): { label: string; colour: string } {
-  if (invite.used_at) return { label: "Used", colour: "bg-gray-100 text-gray-500" };
-  if (new Date(invite.expires_at) < new Date()) return { label: "Expired", colour: "bg-red-50 text-red-600" };
-  return { label: "Pending", colour: "bg-green-50 text-green-700" };
+function formatCountdown(msRemaining: number): string {
+  if (msRemaining <= 0) return "any moment now";
+  const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+  const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
-function InvitesTab() {
-  const [invites, setInvites] = useState<ClubInvite[]>([]);
+function JoinCodeTab() {
+  const [info, setInfo] = useState<JoinCodeInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState("");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const [form, setForm] = useState({ role: "sailor" as UserRole, name: "", expiresInDays: 14 });
+  const [copied, setCopied] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   async function refresh() {
-    const data = await loadInvites();
-    setInvites(data);
-    setLoading(false);
+    setError("");
+    try {
+      setInfo(await loadJoinCode());
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load join code");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { refresh(); }, []);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setSaving(true);
-    try {
-      await createInvite(form.role, form.name, form.expiresInDays);
-      setForm({ role: "sailor", name: "", expiresInDays: 14 });
-      await refresh();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create invite");
-    } finally {
-      setSaving(false);
-    }
-  }
+  // Tick every 30s so the countdown stays roughly current, and re-fetch
+  // once the code should have rotated so the new one shows automatically
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
-  async function handleRevoke(id: string) {
-    await revokeInvite(id);
-    await refresh();
-  }
+  useEffect(() => {
+    if (info && new Date(info.expiresAt).getTime() <= now) refresh();
+  }, [now, info]);
 
-  function copyLink(invite: ClubInvite) {
-    const url = `${window.location.origin}/register?token=${invite.token}`;
-    navigator.clipboard.writeText(url).then(() => {
-      setCopiedId(invite.id);
-      setTimeout(() => setCopiedId(null), 2500);
+  function copyCode() {
+    if (!info) return;
+    navigator.clipboard.writeText(info.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
     });
   }
 
+  async function handleRegenerate() {
+    setRegenerating(true);
+    setError("");
+    try {
+      setInfo(await regenerateJoinCode());
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to regenerate code");
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-gray-400">
+        <span className="text-2xl animate-bounce mr-3">⛵</span>
+        <span className="text-sm">Loading…</span>
+      </div>
+    );
+  }
+
+  const msRemaining = info ? new Date(info.expiresAt).getTime() - now : 0;
+
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={handleCreate} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Invite a new member</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <select
-            value={form.role}
-            onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as UserRole }))}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          >
-            {ROLE_OPTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Name (optional label)"
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          />
-          <select
-            value={form.expiresInDays}
-            onChange={(e) => setForm((f) => ({ ...f, expiresInDays: Number(e.target.value) }))}
-            className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-          >
-            <option value={1}>Expires in 1 day</option>
-            <option value={7}>Expires in 7 days</option>
-            <option value={14}>Expires in 14 days</option>
-            <option value={30}>Expires in 30 days</option>
-          </select>
-        </div>
-        {error && <p className="mt-3 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-xs text-red-700">{error}</p>}
-        <button type="submit" disabled={saving}
-          className="mt-3 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60 transition-colors">
-          {saving ? "Creating…" : "+ Create invite link"}
-        </button>
-      </form>
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm text-center">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Club join code</h2>
+        <p className="text-xs text-gray-400 mb-5">
+          Share this with new members — they enter it at sign-up and pick their own role.
+        </p>
 
-      <div>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">
-          Invites <span className="text-gray-400 font-normal">({invites.length})</span>
-        </h2>
-        {loading ? (
-          <div className="flex items-center justify-center py-12 text-gray-400">
-            <span className="text-2xl animate-bounce mr-3">⛵</span>
-            <span className="text-sm">Loading…</span>
-          </div>
-        ) : invites.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-sm text-gray-400">
-            No invites created yet.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {invites.map((invite) => {
-              const status = inviteStatus(invite);
-              const canUse = status.label === "Pending";
-              return (
-                <div key={invite.id} className="flex items-center justify-between gap-3 bg-white rounded-xl border border-gray-100 px-4 py-3 shadow-sm">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {invite.invitee_name || "Unnamed invite"}
-                      </p>
-                      <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.colour}`}>
-                        {status.label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-400">
-                      {ROLE_OPTIONS.find((r) => r.value === invite.role)?.label ?? invite.role}
-                      {" · expires "}
-                      {new Date(invite.expires_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {canUse && (
-                      <button
-                        onClick={() => copyLink(invite)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                          copiedId === invite.id
-                            ? "border-green-200 bg-green-50 text-green-700"
-                            : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        }`}
-                      >
-                        {copiedId === invite.id ? "✓ Copied!" : "🔗 Copy link"}
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleRevoke(invite.id)}
-                      className="text-xs text-gray-300 hover:text-red-500 transition-colors"
-                    >
-                      {canUse ? "Revoke" : "Remove"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        {info && (
+          <>
+            <div className="text-4xl font-mono font-bold tracking-[0.3em] text-blue-700 mb-4 select-all">
+              {info.code}
+            </div>
+
+            <div className="flex items-center justify-center gap-2 mb-5">
+              <button
+                onClick={copyCode}
+                className={`rounded-lg border px-4 py-2 text-xs font-medium transition-colors ${
+                  copied
+                    ? "border-green-200 bg-green-50 text-green-700"
+                    : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                }`}
+              >
+                {copied ? "✓ Copied!" : "📋 Copy code"}
+              </button>
+              <button
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+              >
+                {regenerating ? "Regenerating…" : "🔄 Regenerate now"}
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400">
+              Rotates automatically in <span className="font-medium text-gray-600">{formatCountdown(msRemaining)}</span> — every 24 hours, for security.
+            </p>
+          </>
         )}
+
+        {error && (
+          <p className="mt-4 rounded-xl bg-red-50 border border-red-100 px-4 py-2.5 text-xs text-red-700">{error}</p>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+        <p className="text-xs text-amber-800">
+          <span className="font-semibold">Heads up:</span> anyone with this code can join and choose any
+          role — including Club Manager. Only share it with people you trust, and regenerate it if it
+          ever gets shared more widely than intended (e.g. posted somewhere public).
+        </p>
       </div>
     </div>
   );
@@ -440,7 +406,7 @@ export default function ClubManagerPage() {
     requireRole: ["club_manager"],
     redirectIfUnauthorised: "/planner",
   });
-  const [tab, setTab] = useState<"boats" | "invites" | "weather">("boats");
+  const [tab, setTab] = useState<"boats" | "code" | "weather">("boats");
 
   if (profileLoading || !profile) {
     return (
@@ -457,7 +423,7 @@ export default function ClubManagerPage() {
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-gray-900">Club Manager</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Manage the club fleet and invite new members.</p>
+          <p className="text-sm text-gray-400 mt-0.5">Manage the club fleet and new member sign-ups.</p>
         </div>
 
         <div className="flex items-center gap-2 mb-6">
@@ -470,12 +436,12 @@ export default function ClubManagerPage() {
             🛥️ Boats
           </button>
           <button
-            onClick={() => setTab("invites")}
+            onClick={() => setTab("code")}
             className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
-              tab === "invites" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+              tab === "code" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
             }`}
           >
-            ✉️ Invites
+            🔑 Join Code
           </button>
           <button
             onClick={() => setTab("weather")}
@@ -487,7 +453,7 @@ export default function ClubManagerPage() {
           </button>
         </div>
 
-        {tab === "boats" ? <BoatsTab /> : tab === "invites" ? <InvitesTab /> : <WeatherTab />}
+        {tab === "boats" ? <BoatsTab /> : tab === "code" ? <JoinCodeTab /> : <WeatherTab />}
       </main>
     </div>
   );
